@@ -1,2 +1,2 @@
-# Practica_GIS_II
-Práctica de GIS II del Máster Geoforest.
+# Practica SIG II
+Práctica de SIG II del Máster Geoforest.
