@@ -1,0 +1,105 @@
+---
+title: "Práctica SIG II"
+author: "Adrian Cidre Gonzalez"
+date: "`r Sys.Date()`"
+# output:
+#   cleanrmd::html_document_clean:
+#     theme: new.css
+#     toc: true
+#     toc_float: yes
+#     toc_collapsed: yes
+#     css: style.css
+
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: vignette
+    math: katex
+    toc: true
+    number_section: true
+    css: "estilos/style.css"
+
+
+
+# output:
+#   html_document:
+#     fig_caption: true
+#     toc: true
+#     toc_float: true
+#     toc_collapsed: true
+#     css: style.css
+
+# output:
+#   bookdown::gitbook:
+#     css: style.css
+#     lib_dir: assets
+#     number_sections: false
+#     highlight: haddock
+#     config:
+#       font-style: Comic Sans
+#       font-size: 20
+#       toc:
+#         depth: 3
+#         collapse: section
+#         scroll_highlight: no
+#       edit: null
+#       download: yes
+#       search: yes
+---
+
+```{r echo=FALSE}
+#Determine the output format of the document
+outputFormat   = knitr::opts_knit$get("rmarkdown.pandoc.to")
+
+#Figure and Table Caption Numbering, for HTML do it manually
+capTabNo = 1; capFigNo = 1;
+
+#Function to add the Table Number
+capTab = function(x){
+  if(outputFormat == 'html'){
+    x = paste0("Tabla ",capTabNo,". ",x)
+    capTabNo <<- capTabNo + 1
+  }; x
+}
+
+#Function to add the Figure Number
+capFig = function(x){
+  if(outputFormat == 'html'){
+    x = paste0("Fig. ",capFigNo,". ",x)
+    capFigNo <<- capFigNo + 1
+  }; x
+}
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE,
+                      fig.align = 'center',
+                      fig.dim = c(8,6))
+```
+
+# R Markdown  
+<hr>
+## Sec 2   
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+# Including Plots
+
+## Otra   
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE, fig.cap=capFig("esto es una figura"),fig.lp = "Figura "}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
