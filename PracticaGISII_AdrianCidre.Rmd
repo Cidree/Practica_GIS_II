@@ -63,6 +63,7 @@ knitr::opts_chunk$set(echo = TRUE,
 
 
 mapviewOptions(
+  homebutton = FALSE,
   na.color = NA,
   legend.pos = "bottomright",
   trim = TRUE,
@@ -126,12 +127,12 @@ mapview(yunquera,
   
   mapview(vegetacion,
           viewer.suppress = mapviewGetOption("viewer.suppress"),
-        zcol = 'D_ARBO_PRE',
-        burst = F,
-        alpha.regions = 0.3,
-        layer.name = 'Arbolado (%)',
-        popup = popupTable(vegetacion,
-                          zcol = 'COMENTARIO'))
+          zcol = 'D_ARBO_PRE',
+          burst = F,
+          alpha.regions = 0.3,
+          layer.name = 'Arbolado (%)',
+          popup = popupTable(vegetacion,
+                             zcol = 'COMENTARIO'))
 ```
 
 <br>  
@@ -427,6 +428,7 @@ SF_pinsapo <- read_sf(here("Cartografia/CartografiaOriginal/inventario_pinsapo.s
 
 ```{r, echo=FALSE}
 pal <- brewer.pal(n = 6, name = "Greens")
+
 mapview(yunquera,
         pane = "auto",
         viewer.suppress = mapviewGetOption("viewer.suppress"),
@@ -435,8 +437,8 @@ mapview(yunquera,
         legend = FALSE,
         lwd = 3,
         alpha.regions = 0,
-        layer.name = 'Yunquera',
-        cex = 10) + 
+        layer.name = 'Yunquera') + 
+  
   mapview(SF_pinsapo,
         zcol = "Nparc",
         col.regions = pal,
@@ -577,11 +579,19 @@ x <- levels(R_orientaciones)[[1]]
 x$code <- c("N","NE","E","SE","S","SW","W","NW")
 levels(R_orientaciones) <- x
 
-mapview(R_orientaciones,
-        na.color = NA,
-        col.regions = brewer.pal(8, "Set2"),
-        layer.name = 'Orientaciones',
-        burst = F)
+aspal <- c("#F11512", "#F4B225","#EFF915","#ACF7B1","#91F4FF","#91B0DC","#0463EB","#D604EB")
+
+mapview(yunquera,
+        color = 'red',
+        legend = FALSE,
+        lwd = 3,
+        alpha.regions = 0,
+        layer.name = 'Yunquera') +
+  
+  mapview(R_orientaciones,
+          na.color = NA,
+          col.regions = aspal,
+          layer.name = 'Orientaciones')
 ```
 <br>  
 
@@ -598,10 +608,16 @@ R_dist_canales <- raster(here("Cartografia/CartografiaOriginal/Raster_distancia_
 
 <center>
 ```{r, echo=FALSE}
-mapview(R_dist_canales,
-      #  col.regions = brewer.pal(6,),
-        layer.name = "Distancia (m)",
-        na.color = NA)
+mapview(yunquera,
+        color = 'red',
+        legend = FALSE,
+        lwd = 3,
+        alpha.regions = 0,
+        layer.name = 'Yunquera') +
+  
+  mapview(R_dist_canales,
+          col.regions = brewer.pal(10,"RdBu"),
+          layer.name = "Distancia (m)")
 ```
 </center>
 <br>  
@@ -659,7 +675,7 @@ knitr::include_graphics("Imagenes/rvirtual.png")
 
 El último paso de esta sección consiste en realizar una segmentación del monte de Yunquera usando el ráster virtual creado en la sección anterior. Para ello, se utilizará la herramienta [Orfeo Toolbox](https://www.orfeo-toolbox.org/) en la interfaz de QGIS.  
 
-Para llevar esta tarea a cabo, con Orfeo correctamente instalado, se debe ir a *Caja de herramientas de Procesos -> OTB -> Segmentation -> Segmentation*. Una vez ahí, se seleccionaron las opciones de la [Fig. 6](#sexta). La opción "*Minimum region size*" se probó con varios valores. En el *webmap* que se verá posteriormente se analizarán las diferencias e incluencias de las diferentes capas de entrada en los resultados.  
+Para llevar esta tarea a cabo, con Orfeo correctamente instalado, se debe ir a *Caja de herramientas de Procesos -> OTB -> Segmentation -> Segmentation*. Una vez ahí, se seleccionaron las opciones de la [Fig. 6](#sexta). La opción "*Minimum region size*" se probó con varios valores. En el *webmap* que se verá posteriormente se analizarán las diferencias e influencia de las diferentes capas de entrada en los resultados.  
 
 ##### {.unnumbered #sexta}  
 ```{r,echo=FALSE, out.width = "1200px", fig.cap=capFig("Parámetros utilizados en la segmentación")}
@@ -667,6 +683,57 @@ knitr::include_graphics("Imagenes/segmentacion.png")
 ```
 <br> 
 
+Para finalizar la segunda parte de la práctica, se cargan las tres capas creadas con Orfeo en QGIS.
+
+```{r}
+segmentation1500 <- read_sf(here("Cartografia/CapasDefVectorial/segmentacion_1500.shp"))
+
+segmentation2000 <- read_sf(here("Cartografia/CapasDefVectorial/segmentacion_2000.shp"))
+
+segmentation2500 <- read_sf(here("Cartografia/CapasDefVectorial/segmentacion_2500.shp"))
+```
+
+```{r,echo=FALSE}
+mapviewOptions(
+  homebutton = FALSE,
+  query.type = "mousemove",
+  fgb = T,
+  legend.pos = "bottomleft",
+  layers.control.pos = "bottomright"
+)
+  
+mapview(segmentation1500,
+          alpha.regions = 0,
+          lwd = 2,
+          color = '#0DEDFF') +
+  mapview(segmentation2000,
+          alpha.regions = 0,
+          lwd = 2,
+          color = '#FE2E00') +
+  
+  mapview(segmentation2500,
+          alpha.regions = 0,
+          lwd = 2,
+          color = '#17FF22') +
+  
+  mapview(R_pinsapo,
+          col.regions = pal,
+          layer.name = 'Densidad pinsapo') +
+  
+  mapview(R_shannon,
+          col.regions = brewer.pal(n = 5, name = "RdYlGn"),
+          layer.name = 'Indice de Shannon') +
+  
+  mapview(R_orientaciones,
+        col.regions = aspal,
+        layer.name = 'Orientaciones') +
+  
+  mapview(R_dist_canales,
+          col.regions = brewer.pal(10,"RdBu"),
+          layer.name = "Distancia (m)")
+    
+  
+```
 
 
 
