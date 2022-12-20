@@ -693,6 +693,8 @@ segmentation2000 <- read_sf(here("Cartografia/CapasDefVectorial/segmentacion_200
 segmentation2500 <- read_sf(here("Cartografia/CapasDefVectorial/segmentacion_2500.shp"))
 ```
 
+En el *webmap* siguente se puede jugar con las capas para ver el efecto de las distintas segmentaciones en cada una de las capas.  
+
 ```{r,echo=FALSE}
 mapviewOptions(
   homebutton = FALSE,
@@ -731,8 +733,6 @@ mapview(segmentation1500,
   mapview(R_dist_canales,
           col.regions = brewer.pal(10,"RdBu"),
           layer.name = "Distancia (m)")
-    
-  
 ```
 
 
