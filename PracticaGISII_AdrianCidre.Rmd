@@ -543,9 +543,8 @@ La segunda de las capas se corresponde con la de orientaciones. En este caso car
 
 ```{r}
 # Cargar capa y cortar a la extensión de Yunquera
-mdt <- raster(here("Cartografia/CartografiaOriginal/PNOA_MDT05_ETRS89_HU30_1051_LID.asc"),
-              crs = "+proj=utm +zone=30 +ellps=GRS80 +units=m +no_defs") |> 
-  crop(yunquera)
+mdt <- raster(here("Cartografia/CartografiaOriginal/PNOA_MDT05_ETRS89_HU30_1051_LID.tif"),
+              crs = "+proj=utm +zone=30 +ellps=GRS80 +units=m +no_defs") 
 
 # Cálculo orientaciones
 orientaciones <- terrain(mdt,
@@ -686,11 +685,11 @@ knitr::include_graphics("Imagenes/segmentacion.png")
 Para finalizar la segunda parte de la práctica, se cargan las tres capas creadas con Orfeo en QGIS.
 
 ```{r}
-segmentation1500 <- read_sf(here("Cartografia/CapasDefVectorial/segmentacion_1500.shp"))
+segmentation1500 <- read_sf(here("Cartografia/CapasDefVectorial/segmentacion1500.shp"))
 
-segmentation2000 <- read_sf(here("Cartografia/CapasDefVectorial/segmentacion_2000.shp"))
+segmentation2000 <- read_sf(here("Cartografia/CapasDefVectorial/segmentacion2000.shp"))
 
-segmentation2500 <- read_sf(here("Cartografia/CapasDefVectorial/segmentacion_2500.shp"))
+segmentation2500 <- read_sf(here("Cartografia/CapasDefVectorial/segmentacion2500.shp"))
 ```
 
 En el *webmap* siguente se puede jugar con las capas para ver el efecto de las distintas segmentaciones en cada una de las capas.  
@@ -701,7 +700,8 @@ mapviewOptions(
   query.type = "mousemove",
   fgb = T,
   legend.pos = "bottomleft",
-  layers.control.pos = "bottomright"
+  layers.control.pos = "bottomright",
+  leafletHeight = 1000
 )
   
 mapview(segmentation1500,
