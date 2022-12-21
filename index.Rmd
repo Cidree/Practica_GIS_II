@@ -1,0 +1,770 @@
+---
+title: "Práctica SIG II"
+author: "Adrian Cidre Gonzalez"
+date: "`r Sys.Date()`"
+
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: vignette
+    math: katex
+    toc: true
+    toc_depth: 3
+    number_section: true
+    css: "estilos/style.css"
+---
+
+```{r librerias, include=FALSE}
+library(mapview)
+library(leafpop)
+library(tidyverse)
+library(sf)
+library(knitr)
+library(rgbif)
+library(terra)
+library(here)
+library(stars)
+library(raster)
+library(spatstat)
+library(RColorBrewer)
+```
+
+```{r figNumbers, echo=FALSE}
+#Determine the output format of the document
+outputFormat   = knitr::opts_knit$get("rmarkdown.pandoc.to")
+
+#Figure and Table Caption Numbering, for HTML do it manually
+capTabNo = 1; capFigNo = 1;
+
+#Function to add the Table Number
+capTab = function(x){
+  if(outputFormat == 'html'){
+    x = paste0("Tabla ",capTabNo,". ",x)
+    capTabNo <<- capTabNo + 1
+  }; x
+}
+
+#Function to add the Figure Number
+capFig = function(x){
+  if(outputFormat == 'html'){
+    x = paste0("<center>Fig. ",capFigNo,". ",x,"</center>")
+    capFigNo <<- capFigNo + 1
+  }; x
+}
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE,
+                      fig.align = 'center',
+                      fig.dim = c(8,6))
+
+
+mapviewOptions(
+  homebutton = FALSE,
+  na.color = NA,
+  legend.pos = "bottomright",
+  trim = TRUE,
+)
+```
+
+# Descripción del ejercicio {#uno}  
+<hr>
+
+El presente ejercicio se engloba dentro de la materia de *Sistemas de Información Geográfica y Ecología Espacial: Aplicaciones* del Máster Geoforest de la Universidad de Córdoba.  
+
+El trabajo consiste en aplicar las herramientas aprendidas en clase, con lo que los productos finales esperados son:  
+
+* Esquema general del flujo de trabajo  
+
+* Obtención de un mapa de biodiversidad del "Pinar de Yunquera"  
+
+* Segmentación del territorio (mediante la herramienta Orfeo en QGIS)  
+
+* Enlace al mapa web  
+
+* Responder a las preguntas finales  
+
+## Datos de partida {#datos}  
+
+Para la realización del ejercicio partimos de los siguientes datos:  
+
+* **limite_yunquera.shp**: límite de la zona de estudio (EPSG: 25830).  
+
+* **vegetacion_yunquera.shp**: mapa de vegetación de la zona de estudio.  
+
+* **inventario_pinsapo.shp**: puntos de inventario de parcelas de pinsapo (*Abies pinsapo*).  
+
+* **PNOA_MDT05_ETRS89_HU30_1051_LID.asc**: modelo digital del terreno con tamaño de píxel de 5x5 metros.  
+
+Estos datos se encuentran en la carpeta *Cartografia/CartografiaOriginal*.  
+
+El resto de datos de partida se obtendrán a lo largo de la resolución del ejercicio.  
+
+## Zona de estudio {#zonadeestudio}  
+
+Antes de comenzar a resolver el ejercicio conviene hacer una breve descripción de la zona de estudio.  
+
+Yunquera es un municipio perteneciente a la provincia de Málaga (Andalucía). En este monte se encuentra una parte importante del pinsapo. En el siguiente mapa se pueden explorar las diferentes formaciones vegetales presentes en el área de estudio (hacer *click* en las parcelas para explorar).  
+
+```{r yunquera, echo=FALSE}
+yunquera <- read_sf(here('Cartografia/CartografiaOriginal/limite_yunquera.shp'),
+                    crs = 25830)
+vegetacion <- read_sf(here('Cartografia/CartografiaOriginal/vegetacion_yunquera.shp'),
+                    crs = 25830)
+
+mapview(yunquera,
+        pane = "auto",
+        viewer.suppress = mapviewGetOption("viewer.suppress"),
+        burst = FALSE,
+        color = 'red',
+        legend = FALSE,
+        lwd = 3,
+        alpha.regions = 0,
+        layer.name = 'Yunquera') +
+  
+  mapview(vegetacion,
+          viewer.suppress = mapviewGetOption("viewer.suppress"),
+          zcol = 'D_ARBO_PRE',
+          burst = F,
+          alpha.regions = 0.3,
+          layer.name = 'Arbolado (%)',
+          popup = popupTable(vegetacion,
+                             zcol = 'COMENTARIO'))
+```
+
+<br>  
+
+# Resolución del ejercicio  
+<hr>  
+
+Se ha dividido el ejercicio en 4 bloques de acuerdo a los objetivos del mismo.  
+
+## Flujo de trabajo {#flujo}  
+
+
+## Mapa de biodiversidad {#biodiversidad}  
+
+En esta sección se construirá un mapa donde se representará el Índice de Shanon:  
+
+<center>
+$$
+\tag1
+H' = - \sum^s_{i=1} p_i \times log_2 p_i
+$$
+</center>
+<br>
+
+donde:  
+
+ * *i*: cada una de las distintas especies  
+ 
+ * *s*: total de especies distintas  
+ 
+ * $p_i$: abundancia relativa de cada especie en la comunidad (N individuos de la especie *i* / N total de individuos).  
+ 
+### Descarga de ocurrencias  
+
+En primer lugar debemos descargar las ocurrencias de [GBIF](https://www.gbif.org/). En este caso se ha creado un rectángulo en la plataforma web y se han extraído todas las ocurrencias que se encontraban dentro de este rectángulo (correspondiente a la zona de estudio).  
+
+A continuación se importan las ocurrencias en R con el nombre de *puntos*. El siguiente paso es convertir estos puntos en un objeto espacial. Para ello se utiliza la función `sf::st_as_sf()`. La salida de esta operación (*puntos_sf*) se transforma al sistema de coordenadas en el que se está trabajando (EPSG: 25830) llamando al objeto *ocurrencias*. En la [Fig. 1](#primera) comprobamos que hemos elegido correctamente el rectángulo, y que nuestros puntos se extienden más allá de la zona de estudio asegurando la inclusión de todas las ocurrencias.  
+
+```{r}
+puntos <- read.csv(file = here('Cartografia/Tablas/ocurrences.csv'),
+                   sep = "\t",
+                   quote = "") |> 
+  dplyr::select(scientificName,species,decimalLatitude,decimalLongitude) |> 
+  drop_na()
+
+puntos_sf <- st_as_sf(puntos,
+                      coords = c('decimalLongitude','decimalLatitude'),
+                      crs = 4326)
+
+ocurrencias <- st_transform(puntos_sf,
+                            crs = 25830)
+```
+
+##### {.unnumbered #primera}  
+```{r puntosGBIF, echo=FALSE, fig.cap=capFig("Localización de los puntos descargados de GBIF con respecto al área de estudio")}
+ggplot() +
+  geom_sf(data = ocurrencias, alpha = 0.2) +
+  geom_sf(data = yunquera, color = "red", fill = NA, linewidth = 1.5) +
+  theme_minimal() +
+  coord_sf()
+```
+<br>  
+
+El siguiente paso será delimitar los puntos escogidos al rectánculo mínimo envolvente (*bounding box*) del área de estudio mediante la función `sf::st_crop()`. La razón de escoger todos los puntos incluidos dentro del rectángulo y no solamente los que están dentro del área de estudio es que como veramos en la siguiente [sección](#comunidades) trabajaremos con comunidades ecológicas de forma cuadrangular.  
+
+```{r}
+ocurrencias <- st_crop(ocurrencias, yunquera)
+```
+
+Podemos ver el resultado en la [Fig. 2](#segunda), que ascienden a un total de `r nrow(ocurrencias)` ocurrencias correspondientes a `r length(unique(ocurrencias$scientificName))` especies diferentes.  
+
+##### {.unnumbered #segunda}  
+```{r puntosFinales, echo=FALSE, fig.cap=capFig("Ocurrencias de GBIF dentro del monte de Yunquera")}
+ggplot() +
+  geom_sf(data = ocurrencias, alpha = 0.2) +
+  geom_sf(data = yunquera, color = "red", fill = NA, linewidth = 1.5) +
+  theme_minimal() +
+  coord_sf()
+```
+<br>  
+
+### Creación de comunidades ecológicas {#comunidades}  
+
+Las comunidades ecológicas se asumirán que son entidades cuadrangulares de 250 m de lado. Para ello creamos primero la base sobre la que se crearán estas comunidades ecológicas, que será el retángulo mínimo envolvente de la zona de estudio (*bounding box*), el cuál se construye con la función `sf::st_bbox()`. A continuación se crea una malla (`sf::st_make_grid()`) con tamaño de celda de 250x250m (*cellsize*), y se les asigna un *GID* único a cada una. Finalmente se crea el objeto *ocurrencias_id* que no es más que la misma entidad de *ocurrencias* que teníamos con un campo nuevo correspondiente al *GID* de la comunidad ecológica a la que pertenecen. La última función crea un *data frame* llamado *bio* que será con el que calcularemos el índice de Shannon.    
+
+```{r}
+# Crear bounding box y convertir a espacial
+BBox <- st_bbox(yunquera)
+BBox <- st_as_sfc(BBox)
+
+# Crear malla de 250x250m (utilizar old pipeline para nchar)
+grid250  <- BBox %>%
+  st_make_grid(square = TRUE, cellsize = c(250, 250)) %>%
+  cbind(data.frame(ID = sprintf(paste("GID%0",
+                                      nchar(length(.)),
+                                      "d",
+                                      sep=""), 
+                                1:length(.)))) %>%
+  st_sf()
+
+# Añadir ID de comunidad ecologica a cada ocurrencia
+ocurrencias_id <- ocurrencias |> 
+  st_join(grid250, join = st_intersects ) |> 
+  mutate(id_250 = factor(ID),
+         scientific = scientificName) |> 
+  dplyr::select(-ID,-scientificName)
+
+# Crear data frame 
+bio <- data.frame(id_250 = ocurrencias_id$id_250,
+                  scientific = ocurrencias_id$scientific) |> 
+  drop_na()
+```
+
+``` {r, echo=FALSE}
+kable(head(bio),caption = "Tabla 1. Encabezado de la tabla de datos de ocurrencias en las distintas cuadrículas")
+```
+<br>  
+
+En la [Fig. 3](#tercera) tenemos una representación gráfica de como quedaría esta malla cuadrangular con respecto a las ocurrencias y a la zona de estudio, y en la [Fig. 4](#cuarta) vemos la densidad de puntos en la zona.  
+
+##### {.unnumbered #tercera}
+```{r grid, echo=FALSE, fig.cap=capFig("Malla cuadrangular de 250 x 250 m en el monte de Yunquera. Los puntos son todas las ocurrencias consideradas en los análisis posteriores")}
+ggplot() +
+  geom_sf(data = grid250, alpha = 0.2) +
+  geom_sf(data = ocurrencias, alpha = 0.2) +
+  geom_sf(data = yunquera, color = "red", fill = NA, linewidth = 1.5) +
+  theme_minimal() +
+  coord_sf()
+```
+<br>
+
+##### {.unnumbered #cuarta}  
+```{r densidad, echo=FALSE, fig.cap=capFig("Mapa de densidad de ocurrencias en el monte de Yunquera")}
+ggplot() +
+  geom_sf(data = grid250, alpha = 0.2) +
+  stat_density_2d(data = data.frame(st_coordinates(ocurrencias)), 
+                  mapping = aes(x = X,
+                                y = Y,
+                                fill = stat(density)),
+                  geom = 'tile',
+                  contour = FALSE,
+                  alpha = 0.8) +
+  geom_sf(data = yunquera, color = "red", fill = NA, linewidth = 1.5) +
+  theme_minimal() +
+  scale_fill_viridis_c(option = 'magma', direction = -1) +
+  labs(x = "", y ="", fill = "") +
+  coord_sf()
+```
+<br>  
+
+### Cálculo del índice de Shannon {#H}  
+
+El último paso de esta sección será calcular el Índice de Shannon (H). Esto lo haremos en cuatro pasos:  
+
+ 1) Calcular el número de **especies** por cuadrícula. En el siguiente cuadro de código se agrupa por cuadrícula y nombre (`group_by`), se genera una columna con el número de especies (`count()`), y se le cambia el nombre a la columna. En la [Tabla 2](#tdos) vemos el encabezado del resultado.    
+
+```{r}
+T_num_ind_sp_cuad <- bio |> 
+  group_by(id_250, scientific) |> 
+  count() |> 
+  rename(num_ind_sp_cuad = n)
+```
+
+##### {.unnumbered #tdos}  
+```{r tnumind, echo=FALSE}
+kable(head(T_num_ind_sp_cuad),
+      caption = "Tabla 2. Encabezado de la tabla del número de especies por cuarícula",
+      align = c("c","l","c"))
+```
+<br>  
+
+ 2) Calcular el número de **ocurrencias** por cuadrícula. Realizamos un procedimiento similar, pero en este caso solamente agrupamos por cuadrícula. Vemos el encabezado en la [Tabla 3](#ttres).  
+
+```{r}
+T_num_ind_cuad <- bio |> 
+  group_by(id_250) |> 
+  count() |> 
+  rename(num_ind_cuad = n)
+```
+
+##### {.unnumbered #ttres}  
+```{r, echo=FALSE}
+kable(head(T_num_ind_cuad),
+      caption = "Tabla 3. Encabezado de la tabla del número de ocurrencias por cuadrícula",
+      align = c("c","c"))
+```
+<br>
+
+ 3) El siguiente paso calcula el Índice de Shannon (*T_Shannon*). Para ello se unen las tablas haciendo un `left_join()` que incluye todas las columnas de la [Tabla 1](#tdos) de forma que cada cuadrícula tendrá asociada sus especies, el número de ocurrencias de cada una, y el número total de ocurrencias de la cuadrícula de esa especie. A continuación se crean los coeficientes $p_i$ y $\log p_i$ que se utilizarán para el cálculo del índice. En la [Tabla 4](#tcuatro) vemos la estructura de los datos hasta este punto.  
+Finalmente, se calcula el índice de Shannon, se seleccionan las columnas necesarias y se eliminan los duplicados.  
+
+```{r}
+T_Shannon <- T_num_ind_sp_cuad |> 
+  left_join(T_num_ind_cuad,
+            by = 'id_250') |> 
+  mutate(pi = num_ind_sp_cuad/num_ind_cuad,
+         logpi = log2(pi)) |> 
+  group_by(id_250) |> 
+  mutate(shannon = sum(logpi * pi)*-1) |> 
+  dplyr::select(id_250, shannon) |> 
+  distinct()
+```
+
+##### {.unnumbered #tcuatro} 
+```{r, echo=FALSE}
+kable(head(T_num_ind_sp_cuad |> 
+  left_join(T_num_ind_cuad,
+            by = 'id_250') |> 
+  mutate(pi = num_ind_sp_cuad/num_ind_cuad,
+         logpi = log2(pi))),
+  caption = "Tabla 4. Coeficientes para el cálculo del Índice de Shannon",
+  align = c("c","l","c","c","c","c"))
+```
+<br>
+
+ 4) El último paso consiste en dar el valor de Índice de Shannon a cada una de las [cuadrículas](#tercera) y reemplazar donde no hay ninguna ocurrencia por un 0. Vemos en el mapa la representación final
+
+```{r}
+# Valor H a cada cuadricula
+SF_shannon <- grid250 |> 
+  left_join(y = T_Shannon,
+            by = c("ID" = "id_250"))
+
+# Sustituir NA por 0
+SF_shannon$shannon <- replace_na(SF_shannon$shannon, 0)
+
+# Corte para visualización
+SF_shannon_inter <- st_intersection(SF_shannon, yunquera)
+```
+
+
+```{r, echo=FALSE}
+mapview(yunquera,
+        pane = "auto",
+        viewer.suppress = mapviewGetOption("viewer.suppress"),
+        burst = FALSE,
+        color = 'red',
+        legend = FALSE,
+        lwd = 3,
+        alpha.regions = 0,
+        layer.name = 'Yunquera',
+        cex = 10) +
+  
+mapview(SF_shannon_inter,
+        zcol = 'shannon',
+        at = c(0,0.80,1.6,2.3,2.9,9.1),
+        col.regions = c('red','orange','yellow','green','blue'),
+        label = paste("H =", round(SF_shannon_inter$shannon, 2)),
+        layer.name = 'Indice de Shannon',
+        popup = popupTable(SF_shannon,
+                          zcol = c('ID')))
+```
+<br>  
+
+## Segmentación {#segmentacion}  
+
+La segmentación consiste en dividir el territorio en unidades homogéneas en cuanto a unas determinadas características de las variables de entrada. El procedimiento consiste de los siguientes pasos:  
+
+1) Elegir las variables de entrada  
+
+2) Convertir a formato raster y homogeneizar las escalas  
+
+3) Construir un raster virtual  
+
+4) Segmentación del territorio  
+
+### Variables de entrada {#variables}  
+
+En esta sección se realizarán los pasos 1 y 2 previos. Para ello, construiremos un total de 4 variables (ver cuadro siguiente).  
+
+<div class="cuadros">  
+<center>**Variables de entrada**</center>
+
+**Densidad de pinsapo**: información sobre la vegetación  
+
+**Orientaciones**: información sobre el estrés abiótico derivado de la situación de solana y umbría  
+
+**Distancia a canales**: información sobre zonas de posible compensación hídrica  
+
+**Índice de Shannon**: información sobre la biodiversidad  
+</div>  
+<br>  
+
+#### Densidad de pinsapo {.unnumbered}  
+
+En primer lugar cargamos la capa, la cual se encuentra en CRS 25830, y la visualizamos con los límites del monte para comprobar que todo es correcto.  
+
+```{r}
+SF_pinsapo <- read_sf(here("Cartografia/CartografiaOriginal/inventario_pinsapo.shp"),
+                      crs = 25830)
+```
+
+
+```{r, echo=FALSE}
+pal <- brewer.pal(n = 6, name = "Greens")
+
+mapview(yunquera,
+        pane = "auto",
+        viewer.suppress = mapviewGetOption("viewer.suppress"),
+        burst = FALSE,
+        color = 'red',
+        legend = FALSE,
+        lwd = 3,
+        alpha.regions = 0,
+        layer.name = 'Yunquera') + 
+  
+  mapview(SF_pinsapo,
+        zcol = "Nparc",
+        col.regions = pal,
+        label = paste("N pies:", round(SF_pinsapo$Nparc,0)),
+        layer.name = "Densidad pinsapo")
+```
+<br>  
+
+El siguiente paso será crear un raster de densidad. En ese sentido, se utilizará la interpolación inversa a la distancia (IDW).  
+
+(1) Primero se transforman los puntos a WGS 1984 ya que las funciones siguientes trabajan este sistema de coordenadas. 
+
+```{r}
+SF_pinsapo84 <- st_transform(SF_pinsapo, crs = 4326)
+```
+
+
+(2) A continuación obtenemos el rectángulo mínimo envolvente(*BBox84*). Se da una toleracia de 0.005º dado que al reproyectar la imagen se pierde información.    
+
+```{r}
+BBox84 <- st_bbox(SF_pinsapo84)
+
+
+BBox84[c(1,3)] <- BBox84[c(1,3)] + c(-0.005,0)
+BBox84[c(2,4)] <- BBox84[c(2,4)] + c(-0.005,0)
+```
+
+
+(3) Creamos un patrón de puntos con la función `spatstat.geom::ppp()` utilizando el vector de coordendas X e Y, `marks` es la variable que utilizaremos para interpolar (Nparc), y en un objeto `owin()` ponemos las coordendas X e Y del rectángulo mínimo envolvente, que será la extensión de salida.  
+
+```{r}
+ppp_pinsapo <- ppp(st_coordinates(SF_pinsapo84)[,1],
+                   st_coordinates(SF_pinsapo84)[,2],
+                   marks = SF_pinsapo$Nparc,
+                   window = owin(BBox84[c(1,3)],
+                                 BBox84[c(2,4)]))
+```
+
+
+(4) Con la función `spatstat::idw()` realizamos la interpolación y se transforma a *raster*, que en este caso a diferencia de QGIS no tenemos opción de escoger el número de vecinos de cuáles hacer la interpolación (no obstante, la diferencia del raster de salida es mínima).  
+
+```{r}
+R_pinsapo <- ppp_pinsapo |> 
+  idw(power = 2, at = 'pixels') |> 
+  raster()
+```
+
+(5) Se asigna la proyección y se reproyecta al sistema 25830 cambiando la resolución a 10 metros.  
+
+```{r}
+# Asignar proyección
+crs(R_pinsapo) <- crs(SF_pinsapo84)
+
+# Transformar a 25830 y asignar resolución espacial
+R_pinsapo <- projectRaster(R_pinsapo,
+                           crs = 25830,
+                           res = 10)
+```
+
+
+(6) Finalmente se hace una reclasificación de los valores del ráster y se recorta al área de estudio.  
+
+```{r}
+# Matriz de entrada para reclasificación
+classMatrix <- matrix(c(0,50,0,
+                        50,200,100,
+                        200,400,300,
+                        400,600,500,
+                        600,800,700,
+                        800,Inf,900),
+                      byrow = T,
+                      ncol = 3)
+
+# Reclasificación y recorte al área de estudio
+R_pinsapo <- R_pinsapo |> 
+  reclassify(rcl = classMatrix) |> 
+  mask(yunquera)
+```
+
+En el siguiente *webmap* podemos ver el resultado de los análisis anteriores.  
+
+```{r, echo=FALSE}
+pal <- brewer.pal(n = 6, name = "Greens")
+mapview(yunquera,
+        color = 'red',
+        legend = FALSE,
+        lwd = 3,
+        alpha.regions = 0,
+        layer.name = 'Yunquera',
+        cex = 10) +
+  mapview(ratify(R_pinsapo),
+          col.regions = pal,
+          na.color = NA,
+          layer.name = 'Densidad pinsapo')
+```
+<br>
+
+
+#### Orientaciones {.unnumbered}  
+
+La segunda de las capas se corresponde con la de orientaciones. En este caso cargamos el modelo digital del terreno (mdt), calculamos las orientaciones en grados con la función `raster::terrain()`. El siguiente paso será hacer coincidir espacialmente ambos raster con la misma resolución (`resample()`). Finalmente lo reclasificaremos teniendo en cuenta que valores bajos y valores altos significan lo mismo (Norte) y lo trataremos como un raster con valores discretos con la función `ratify()`.   
+
+```{r}
+# Cargar capa y cortar a la extensión de Yunquera
+mdt <- raster(here("Cartografia/CartografiaOriginal/PNOA_MDT05_ETRS89_HU30_1051_LID.tif"),
+              crs = "+proj=utm +zone=30 +ellps=GRS80 +units=m +no_defs") 
+
+# Cálculo orientaciones
+orientaciones <- terrain(mdt,
+                         opt = 'aspect',
+                         unit = 'degrees') |> 
+  resample(R_pinsapo)
+
+# Matriz de clasificación
+mat <- matrix(c(-Inf, 22.5,1,
+                22.5,67.5,2,
+                67.5,112.5,3,
+                112.5,157.5,4,
+                157.5,202.5,5,
+                202.5,247.5,6,
+                247.5,292.5,7,
+                292.5,337.5,8,
+                337.5,Inf,1),
+              ncol = 3,
+              byrow = TRUE)
+
+# Reclasificación y recorte al área de estudio
+R_orientaciones <- orientaciones |> 
+  reclassify(rcl = mat) |> 
+  mask(yunquera) |> 
+  ratify() 
+```
+
+
+```{r, echo=FALSE}
+x <- levels(R_orientaciones)[[1]]
+x$code <- c("N","NE","E","SE","S","SW","W","NW")
+levels(R_orientaciones) <- x
+
+aspal <- c("#F11512", "#F4B225","#EFF915","#ACF7B1","#91F4FF","#91B0DC","#0463EB","#D604EB")
+
+mapview(yunquera,
+        color = 'red',
+        legend = FALSE,
+        lwd = 3,
+        alpha.regions = 0,
+        layer.name = 'Yunquera') +
+  
+  mapview(R_orientaciones,
+          na.color = NA,
+          col.regions = aspal,
+          layer.name = 'Orientaciones')
+```
+<br>  
+
+#### Distancia a canales {.unnumbered}  
+
+El ráster de distancia a canales se ha calculado previamente siguiendo los pasos del [guión](https://ruizgomezfj.github.io/GEOFOREST_SIG2/guion_practica_2022.html#Preparaci%C3%B3n_de_capas_raster:) en QGIS debido a la complicidad de realizar este análisis en R. La capa obtenida se muestra en el siguiente *webmap*, la cual se encuentra en el sistema de coordenadas correspondiente y con `resample()` nos aseguramos de que coincida espacialmente con el resto de capas.  
+
+```{r}
+R_dist_canales <- raster(here("Cartografia/CartografiaOriginal/Raster_distancia_cauces.tif")) |> 
+  resample(R_pinsapo) |> 
+  mask(yunquera)
+```
+
+
+<center>
+```{r, echo=FALSE}
+mapview(yunquera,
+        color = 'red',
+        legend = FALSE,
+        lwd = 3,
+        alpha.regions = 0,
+        layer.name = 'Yunquera') +
+  
+  mapview(R_dist_canales,
+          col.regions = brewer.pal(10,"RdBu"),
+          layer.name = "Distancia (m)")
+```
+</center>
+<br>  
+
+#### Indice de Shannon {.unnumbered}  
+
+El indice de Shannon se ha calculado en la sección [2.2.3](#H). En este caso nos quedaría rasterizar el resultado y remuestrearlo para que coincida espacialmente con el resto de capas.  
+
+```{r}
+R_shannon <- SF_shannon |>
+  dplyr::select(shannon) |> 
+  st_rasterize() |> 
+  as("Raster") |> 
+  resample(R_pinsapo) |> 
+  mask(yunquera)
+```
+
+#### Guardar las capas {.unnumbered}  
+
+Finalmente se exportan las capas a la carpeta *CapasDefRaster*.  
+
+```{r}
+# writeRaster(R_pinsapo,
+#             filename = here("Cartografia/CapasDefRaster/R_pinsapo.tif"),
+#             overwrite = T)
+# 
+# writeRaster(R_orientaciones,
+#             filename = here("Cartografia/CapasDefRaster/R_orientaciones.tif"),
+#             overwrite = T)
+# 
+# writeRaster(R_dist_canales,
+#             filename = here("Cartografia/CapasDefRaster/R_dist_canales.tif"),
+#             overwrite = T)
+# 
+# writeRaster(R_shannon,
+#             filename = here("Cartografia/CapasDefRaster/R_shannon.tif"),
+#             overwrite = T)
+```
+
+<br>  
+
+### Raster virtual {#virtual}  
+
+El ráster virtual se ha creado en QGIS mediante la herramienta *Raster -> Micelanea -> Crear raster virtual*.  
+
+El resultado se muestra en la [Fig. 5](#quinta).  
+
+##### {.unnumbered #quinta}  
+```{r,echo=FALSE, out.width = "1200px", fig.cap=capFig("Creación del Raster virtual en QGIS a partir de las cuatro capas de entrada")}
+knitr::include_graphics("Imagenes/rvirtual.png")
+```
+<br>  
+
+### Segmentación del territorio {#segm}  
+
+El último paso de esta sección consiste en realizar una segmentación del monte de Yunquera usando el ráster virtual creado en la sección anterior. Para ello, se utilizará la herramienta [Orfeo Toolbox](https://www.orfeo-toolbox.org/) en la interfaz de QGIS.  
+
+Para llevar esta tarea a cabo, con Orfeo correctamente instalado, se debe ir a *Caja de herramientas de Procesos -> OTB -> Segmentation -> Segmentation*. Una vez ahí, se seleccionaron las opciones de la [Fig. 6](#sexta). La opción "*Minimum region size*" se probó con varios valores. En el *webmap* que se verá posteriormente se analizarán las diferencias e influencia de las diferentes capas de entrada en los resultados.  
+
+##### {.unnumbered #sexta}  
+```{r,echo=FALSE, out.width = "1200px", fig.cap=capFig("Parámetros utilizados en la segmentación")}
+knitr::include_graphics("Imagenes/segmentacion.png")
+```
+<br> 
+
+Para finalizar la segunda parte de la práctica, se cargan las tres capas creadas con Orfeo en QGIS.
+
+```{r}
+segmentation1500 <- read_sf(here("Cartografia/CapasDefVectorial/segmentacion1500.shp"))
+
+segmentation2000 <- read_sf(here("Cartografia/CapasDefVectorial/segmentacion2000.shp"))
+
+segmentation2500 <- read_sf(here("Cartografia/CapasDefVectorial/segmentacion2500.shp"))
+```
+
+En el *webmap* siguente se puede jugar con las capas para ver el efecto de las distintas segmentaciones en cada una de las capas.  
+
+```{r,echo=FALSE}
+mapviewOptions(
+  homebutton = FALSE,
+  na.color = NA,
+  trim = T,
+  query.type = "mousemove",
+  fgb = F,
+  legend.pos = "bottomleft",
+  layers.control.pos = "bottomright",
+  leafletHeight = 800,
+  leafletWidth = 1000
+)
+```
+
+
+```{r,echo=FALSE}
+m <- mapview(segmentation1500,
+          alpha.regions = 0,
+          lwd = 2,
+          color = '#0DEDFF') +
+  
+  mapview(segmentation2000,
+          alpha.regions = 0,
+          lwd = 2,
+          color = '#FE2E00') +
+  
+  mapview(segmentation2500,
+          alpha.regions = 0,
+          lwd = 2,
+          color = '#17FF22') +
+  
+  mapview(R_pinsapo,
+          col.regions = pal,
+          layer.name = 'Densidad pinsapo') +
+  
+  mapview(R_shannon,
+          col.regions = brewer.pal(n = 5, name = "RdYlGn"),
+          layer.name = 'Indice de Shannon') +
+  
+  mapview(R_orientaciones,
+        col.regions = aspal,
+        layer.name = 'Orientaciones') +
+  
+  mapview(R_dist_canales,
+          col.regions = brewer.pal(10,"RdBu"),
+          layer.name = "Distancia (m)")
+
+m
+```
+
+```{r, include=FALSE}
+mapshot(m,
+        url = "segmentationMap_ACG.html")
+```
+
+<br>
+
+## Webmap {#webmap}  
+
+El tercer objetivo era crear un *webmap* y publicarlo. En este caso se ha publicado en *GitHub* el *webmap* previo. Se puede ver en el siguiente [enlace]().  
+
+##
+
+
+
+
+
+
+
+
+
+
+
+
