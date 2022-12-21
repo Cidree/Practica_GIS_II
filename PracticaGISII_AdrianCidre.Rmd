@@ -697,14 +697,20 @@ En el *webmap* siguente se puede jugar con las capas para ver el efecto de las d
 ```{r,echo=FALSE}
 mapviewOptions(
   homebutton = FALSE,
+  na.color = NA,
+  trim = T,
   query.type = "mousemove",
-  fgb = T,
+  fgb = F,
   legend.pos = "bottomleft",
   layers.control.pos = "bottomright",
-  leafletHeight = 1000
+  leafletHeight = 1000,
+  leafletWidth = 1000
 )
-  
-mapview(segmentation1500,
+```
+
+
+```{r,echo=FALSE}
+m <- mapview(segmentation1500,
           alpha.regions = 0,
           lwd = 2,
           color = '#0DEDFF') +
@@ -733,11 +739,20 @@ mapview(segmentation1500,
   mapview(R_dist_canales,
           col.regions = brewer.pal(10,"RdBu"),
           layer.name = "Distancia (m)")
+
+m
 ```
 
+```{r, include=FALSE}
+mapshot(m,
+        url = "segmentationMap_ACG.html")
+```
 
+<br>
 
+## Webmap {#webmap}  
 
+El tercer objetivo 
 
 
 
