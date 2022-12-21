@@ -97,7 +97,7 @@ Para la realización del ejercicio partimos de los siguientes datos:
 
 * **inventario_pinsapo.shp**: puntos de inventario de parcelas de pinsapo (*Abies pinsapo*).  
 
-* **PNOA_MDT05_ETRS89_HU30_1051_LID.asc**: modelo digital del terreno con tamaño de píxel de 5x5 metros.  
+* **PNOA_MDT05_ETRS89_HU30_1051_LID.tif**: modelo digital del terreno con tamaño de píxel de 5x5 metros.  
 
 Estos datos se encuentran en la carpeta *Cartografia/CartografiaOriginal*.  
 
@@ -105,7 +105,7 @@ El resto de datos de partida se obtendrán a lo largo de la resolución del ejer
 
 ## Zona de estudio {#zonadeestudio}  
 
-Antes de comenzar a resolver el ejercicio conviene hacer una breve descripción de la zona de estudio.  
+Antes de comenzar a resolver el ejercicio conviene realizar una breve descripción de la zona de estudio.  
 
 Yunquera es un municipio perteneciente a la provincia de Málaga (Andalucía). En este monte se encuentra una parte importante del pinsapo. En el siguiente mapa se pueden explorar las diferentes formaciones vegetales presentes en el área de estudio (hacer *click* en las parcelas para explorar).  
 
@@ -216,48 +216,44 @@ ggplot() +
 
 ### Creación de comunidades ecológicas {#comunidades}  
 
-Las comunidades ecológicas se asumirán que son entidades cuadrangulares de 250 m de lado. Para ello creamos primero la base sobre la que se crearán estas comunidades ecológicas, que será el retángulo mínimo envolvente de la zona de estudio (*bounding box*), el cuál se construye con la función `sf::st_bbox()`. A continuación se crea una malla (`sf::st_make_grid()`) con tamaño de celda de 250x250m (*cellsize*), y se les asigna un *GID* único a cada una. Finalmente se crea el objeto *ocurrencias_id* que no es más que la misma entidad de *ocurrencias* que teníamos con un campo nuevo correspondiente al *GID* de la comunidad ecológica a la que pertenecen. La última función crea un *data frame* llamado *bio* que será con el que calcularemos el índice de Shannon.    
+Las comunidades ecológicas se asumirán que son los polígonos de la capa de vegetaciones. Para ello, en primer lugar, se crea un identificador único llamado *ID* y se seleccionan las columnas que más nos interesan. En el siguiente paso se crea una unión (`st_join()`) entre las ocurrencias y el mapa de vegetación según su intersección. De este modo podemos asignar el ID de la comunidad a cada ocurrencia. Finalmente se transforman las columnas necesarias en *data.frame* para los posteriores cálculos.  
 
 ```{r}
-# Crear bounding box y convertir a espacial
-BBox <- st_bbox(yunquera)
-BBox <- st_as_sfc(BBox)
-
-# Crear malla de 250x250m (utilizar old pipeline para nchar)
-grid250  <- BBox %>%
-  st_make_grid(square = TRUE, cellsize = c(250, 250)) %>%
+# Crear un ID único
+vegetacion <- vegetacion |> 
   cbind(data.frame(ID = sprintf(paste("GID%0",
-                                      nchar(length(.)),
+                                      nchar(nrow(vegetacion)),
                                       "d",
                                       sep=""), 
-                                1:length(.)))) %>%
-  st_sf()
+                                1:nrow(vegetacion)))) |> 
+  select(ID, D_ARBO_PRE:D_SUEL_PRE, D_USO:COMENTARIO)
 
 # Añadir ID de comunidad ecologica a cada ocurrencia
 ocurrencias_id <- ocurrencias |> 
-  st_join(grid250, join = st_intersects ) |> 
-  mutate(id_250 = factor(ID),
+  st_join(vegetacion, join = st_intersects) |> 
+  mutate(id_comunidad = factor(ID),
          scientific = scientificName) |> 
   dplyr::select(-ID,-scientificName)
 
 # Crear data frame 
-bio <- data.frame(id_250 = ocurrencias_id$id_250,
+bio <- data.frame(id_comunidad = ocurrencias_id$id_comunidad,
                   scientific = ocurrencias_id$scientific) |> 
   drop_na()
 ```
 
+
 ``` {r, echo=FALSE}
-kable(head(bio),caption = "Tabla 1. Encabezado de la tabla de datos de ocurrencias en las distintas cuadrículas")
+kable(head(bio),caption = "Tabla 1. Encabezado de la tabla de datos de ocurrencias en las distintas comunidades")
 ```
 <br>  
 
-En la [Fig. 3](#tercera) tenemos una representación gráfica de como quedaría esta malla cuadrangular con respecto a las ocurrencias y a la zona de estudio, y en la [Fig. 4](#cuarta) vemos la densidad de puntos en la zona.  
+En la [Fig. 3](#tercera) tenemos una representación gráfica de como quedarían estas comunidades con respecto a las ocurrencias, y en la [Fig. 4](#cuarta) vemos la densidad de puntos en la zona.  
 
 ##### {.unnumbered #tercera}
-```{r grid, echo=FALSE, fig.cap=capFig("Malla cuadrangular de 250 x 250 m en el monte de Yunquera. Los puntos son todas las ocurrencias consideradas en los análisis posteriores")}
-ggplot() +
-  geom_sf(data = grid250, alpha = 0.2) +
+```{r grid, echo=FALSE, fig.cap=capFig("Comunidades ecológicas en el monte de Yunquera. Los puntos son todas las ocurrencias consideradas en los análisis posteriores")}
+ggplot()  +
   geom_sf(data = ocurrencias, alpha = 0.2) +
+  geom_sf(data = vegetacion, color = "darkgreen", linewidth = 1, fill = NA) +
   geom_sf(data = yunquera, color = "red", fill = NA, linewidth = 1.5) +
   theme_minimal() +
   coord_sf()
@@ -267,7 +263,6 @@ ggplot() +
 ##### {.unnumbered #cuarta}  
 ```{r densidad, echo=FALSE, fig.cap=capFig("Mapa de densidad de ocurrencias en el monte de Yunquera")}
 ggplot() +
-  geom_sf(data = grid250, alpha = 0.2) +
   stat_density_2d(data = data.frame(st_coordinates(ocurrencias)), 
                   mapping = aes(x = X,
                                 y = Y,
@@ -275,6 +270,7 @@ ggplot() +
                   geom = 'tile',
                   contour = FALSE,
                   alpha = 0.8) +
+  geom_sf(data = vegetacion, fill = NA) +
   geom_sf(data = yunquera, color = "red", fill = NA, linewidth = 1.5) +
   theme_minimal() +
   scale_fill_viridis_c(option = 'magma', direction = -1) +
@@ -291,7 +287,7 @@ El último paso de esta sección será calcular el Índice de Shannon (H). Esto 
 
 ```{r}
 T_num_ind_sp_cuad <- bio |> 
-  group_by(id_250, scientific) |> 
+  group_by(id_comunidad, scientific) |> 
   count() |> 
   rename(num_ind_sp_cuad = n)
 ```
@@ -308,7 +304,7 @@ kable(head(T_num_ind_sp_cuad),
 
 ```{r}
 T_num_ind_cuad <- bio |> 
-  group_by(id_250) |> 
+  group_by(id_comunidad) |> 
   count() |> 
   rename(num_ind_cuad = n)
 ```
@@ -330,9 +326,9 @@ T_Shannon <- T_num_ind_sp_cuad |>
             by = 'id_250') |> 
   mutate(pi = num_ind_sp_cuad/num_ind_cuad,
          logpi = log2(pi)) |> 
-  group_by(id_250) |> 
+  group_by(id_comunidad) |> 
   mutate(shannon = sum(logpi * pi)*-1) |> 
-  dplyr::select(id_250, shannon) |> 
+  dplyr::select(id_comunidad, shannon) |> 
   distinct()
 ```
 
@@ -340,7 +336,7 @@ T_Shannon <- T_num_ind_sp_cuad |>
 ```{r, echo=FALSE}
 kable(head(T_num_ind_sp_cuad |> 
   left_join(T_num_ind_cuad,
-            by = 'id_250') |> 
+            by = 'id_comunidad') |> 
   mutate(pi = num_ind_sp_cuad/num_ind_cuad,
          logpi = log2(pi))),
   caption = "Tabla 4. Coeficientes para el cálculo del Índice de Shannon",
@@ -352,9 +348,9 @@ kable(head(T_num_ind_sp_cuad |>
 
 ```{r}
 # Valor H a cada cuadricula
-SF_shannon <- grid250 |> 
+SF_shannon <- vegetacion |> 
   left_join(y = T_Shannon,
-            by = c("ID" = "id_250"))
+            by = c("ID" = "id_comunidad"))
 
 # Sustituir NA por 0
 SF_shannon$shannon <- replace_na(SF_shannon$shannon, 0)
@@ -759,7 +755,11 @@ Los resultados se discuten en la última [sección](#cuestiones). No obstante, L
 
 Para analizar los resultados podemos activar en primer lugar *Segmentacion (2000)*, y a continuación *Segmentacion (2500)* (el orden es importante). Tras hacer esto, podemos activar las variables una a una empezando por *Densidad pinsapo*, *Indice de Shannon*, *Orientaciones* y *Distancia a canales (m)*. La segmentación de 2500 píxeles como unidad mínima se tratará como **segmentación inicial**, y las unidades segmentadas como **cantones**.  
 
-Lo primero que podemos ver es que si segmentamos con unidad mínima de 2000, se crean 7 cantones a mayores. La segmentación inicial parece separar muy bien áreas con alta densidad de pinsapo de áreas con baja densidad. Al aumentar el número de cantones no se ve una clara separación de nuevas áreas con densidad de pinsapo diferentes. Si activamos el índice de Shannon vemos que no existe una clara relación entre los cantones y la diversidad de especies. Sin embargo, aunque no son unas separaciones tan suaves como las vistas para la capa de densidad de pinsapo, sí que se puede ver una relación.
+Lo primero que podemos ver es que si segmentamos con unidad mínima de 2000, se crean 7 cantones a mayores. La segmentación inicial parece separar muy bien áreas con alta densidad de pinsapo de áreas con baja densidad. Al aumentar el número de cantones no se ve una clara separación de nuevas áreas con densidad de pinsapo diferentes. Si activamos el índice de Shannon vemos que no existe una clara relación entre los cantones y la diversidad de especies. Sin embargo, aunque no son unas separaciones tan suaves como las vistas para la capa de densidad de pinsapo, sí que se puede ver una relación. Con respecto a la capa de orientaciones, es la capa más irregular y por ello también hace más complicado el análisis.En algunos cantones se ve una delimitación clara, pero otros parece que incluyen tanto umbrías como solanas. La capa de distancia a canales sí que parece tener una influenia enorme en la generación de cantones. Además, los cantones generados a mayores con segmentación de 2000 píxeles parece que más o menos todos siguen patrones de esta capa.  
+
+Si hacemos el mismo procedimiento tomando como capa inicial *Segmentación (2000)* y la comparamos con *Segmentación (1500)*, vemos que los cantones generados a mayores siguien patrones sobre la capa de orientaciones principalmente.  
+
+Si consideramos una gestión del pinsapo en este monte: el pinsapo es una especie que dadas sus características ecológicas se desarrolla mejor en laderas de umbría. Para realizar una gestión más eficiente de la especie, lo óptimo sería dividir el terreno en un número mayor de cantones. En este caso, con una unidad mínima de 15 hectáreas (1500 píxeles de 100 $m^2$) tenemos un total de `r nrow(segmentation1500)` cantones.  
 
 ```{r, include=FALSE}
 mapshot(m,
@@ -770,7 +770,7 @@ mapshot(m,
 
 ## Webmap {#webmap}  
 
-El tercer objetivo era crear un *webmap* y publicarlo. En este caso se ha publicado en *GitHub* el *webmap* previo. Se puede ver en el siguiente [enlace]().  
+El tercer objetivo era crear un *webmap* y publicarlo. Para ver este mapa hace click [aquí](https://cidree.github.io/Segmentacion_ACG/).  
 
 ## Cuestiones finales {#cuestiones}  
 
