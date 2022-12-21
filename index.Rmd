@@ -527,8 +527,7 @@ mapview(yunquera,
         legend = FALSE,
         lwd = 3,
         alpha.regions = 0,
-        layer.name = 'Yunquera',
-        cex = 10) +
+        layer.name = 'Yunquera') +
   mapview(ratify(R_pinsapo),
           col.regions = pal,
           na.color = NA,
@@ -703,7 +702,7 @@ mapviewOptions(
   fgb = F,
   legend.pos = "bottomleft",
   layers.control.pos = "bottomright",
-  leafletHeight = 800,
+  leafletHeight = 600,
   leafletWidth = 1000
 )
 ```
@@ -713,17 +712,23 @@ mapviewOptions(
 m <- mapview(segmentation1500,
           alpha.regions = 0,
           lwd = 2,
-          color = '#0DEDFF') +
+          color = '#104FC6',
+          col.regions = '#104FC6',
+          layer.name = "Segmentación (1500)") +
   
   mapview(segmentation2000,
           alpha.regions = 0,
           lwd = 2,
-          color = '#FE2E00') +
+          color = '#B22E21',
+          col.regions = '#B22E21',
+          layer.name = "Segmentación (2000)") +
   
   mapview(segmentation2500,
           alpha.regions = 0,
           lwd = 2,
-          color = '#17FF22') +
+          color = '#087639',
+          col.regions = '#087639',
+          layer.name = "Segmentación (2500)") +
   
   mapview(R_pinsapo,
           col.regions = pal,
@@ -735,14 +740,26 @@ m <- mapview(segmentation1500,
   
   mapview(R_orientaciones,
         col.regions = aspal,
-        layer.name = 'Orientaciones') +
+        layer.name = 'Orientaciones',
+        alpha.regions = 0.7) +
   
   mapview(R_dist_canales,
           col.regions = brewer.pal(10,"RdBu"),
-          layer.name = "Distancia (m)")
+          layer.name = "Distancia a canales (m)")
 
 m
 ```
+<br>  
+
+<div tag="cuadros">
+**Nota**: los bordes de la segmentación no coinciden totalmente con el borde de los ráster. Esto se debe a que las capas se encuentran en crs 25830, pero el webmap se representa en Web Mercator (EPSG: 3857). A modo de análisis no afecta, pero las conclusiones finales se tomarán sobre el *Web Map* publicado de la siguiente [sección](#webmap).  
+</div>
+
+Los resultados se discuten en la última [sección](#cuestiones). No obstante, Los resultados se harán en base a la segmentación escogida que se discute en las siguientes líneas.  
+
+Para analizar los resultados podemos activar en primer lugar *Segmentacion (2000)*, y a continuación *Segmentacion (2500)* (el orden es importante). Tras hacer esto, podemos activar las variables una a una empezando por *Densidad pinsapo*, *Indice de Shannon*, *Orientaciones* y *Distancia a canales (m)*. La segmentación de 2500 píxeles como unidad mínima se tratará como **segmentación inicial**, y las unidades segmentadas como **cantones**.  
+
+Lo primero que podemos ver es que si segmentamos con unidad mínima de 2000, se crean 7 cantones a mayores. La segmentación inicial parece separar muy bien áreas con alta densidad de pinsapo de áreas con baja densidad. Al aumentar el número de cantones no se ve una clara separación de nuevas áreas con densidad de pinsapo diferentes. Si activamos el índice de Shannon vemos que no existe una clara relación entre los cantones y la diversidad de especies. Sin embargo, aunque no son unas separaciones tan suaves como las vistas para la capa de densidad de pinsapo, sí que se puede ver una relación.
 
 ```{r, include=FALSE}
 mapshot(m,
@@ -755,7 +772,11 @@ mapshot(m,
 
 El tercer objetivo era crear un *webmap* y publicarlo. En este caso se ha publicado en *GitHub* el *webmap* previo. Se puede ver en el siguiente [enlace]().  
 
-##
+## Cuestiones finales {#cuestiones}  
+
+* Consideras que el resultado es consistente con la realidad que conoces del terreno? Justifica tu respuesta.  
+
+
 
 
 
