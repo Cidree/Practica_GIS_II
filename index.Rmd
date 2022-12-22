@@ -20,6 +20,7 @@ library(leafpop)
 library(tidyverse)
 library(sf)
 library(knitr)
+library(knitrdrawio)
 library(rgbif)
 library(terra)
 library(here)
@@ -59,7 +60,8 @@ knitr::opts_chunk$set(echo = TRUE,
                       warning = FALSE,
                       message = FALSE,
                       fig.align = 'center',
-                      fig.dim = c(8,6))
+                      fig.dim = c(8,6),
+                      engine.path = list(drawio = "C:/Program Files/draw.io/draw.io.exe"))
 
 
 mapviewOptions(
@@ -67,6 +69,18 @@ mapviewOptions(
   na.color = NA,
   legend.pos = "bottomright",
   trim = TRUE,
+)
+```
+
+
+```{r klippy, echo=FALSE, include=TRUE}
+klippy::klippy(
+  lang = c("r", "markdown"),
+  all_precode = FALSE,
+  position = c("top", "right"),
+  color = "auto",
+  tooltip_message = "Copiar código",
+  tooltip_success = "Copiado!!"
 )
 ```
 
@@ -147,6 +161,8 @@ Se ha dividido el ejercicio en 4 bloques de acuerdo a los objetivos del mismo.
 
 ## Flujo de trabajo {#flujo}  
 
+```{drawio workflow, src="imagenes/workflow.drawio"}
+```
 
 ## Mapa de biodiversidad {#biodiversidad}  
 
