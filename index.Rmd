@@ -161,7 +161,8 @@ Se ha dividido el ejercicio en 4 bloques de acuerdo a los objetivos del mismo.
 
 ## Flujo de trabajo {#flujo}  
 
-```{drawio workflow, src="imagenes/workflow.drawio"}
+```{r, out.width=720, out.extra='style="border: 1px solid #464646;" allowfullscreen="" allow="autoplay"'}
+knitr::include_url("file:///D:/OneDrive/Apuntes/Geoforest/2-Formacion_Transversal/SIG_II/Practicas/Practica_GIS_II/Imagenes/workflow.html", height = 405)
 ```
 
 ## Mapa de biodiversidad {#biodiversidad}  
