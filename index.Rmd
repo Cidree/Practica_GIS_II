@@ -109,12 +109,14 @@ Antes de comenzar a resolver el ejercicio conviene realizar una breve descripci�
 
 Yunquera es un municipio perteneciente a la provincia de Málaga (Andalucía). En este monte se encuentra una parte importante del pinsapo. En el siguiente mapa se pueden explorar las diferentes formaciones vegetales presentes en el área de estudio (hacer *click* en las parcelas para explorar).  
 
-```{r yunquera, echo=FALSE}
+```{r yunquera}
 yunquera <- read_sf(here('Cartografia/CartografiaOriginal/limite_yunquera.shp'),
                     crs = 25830)
 vegetacion <- read_sf(here('Cartografia/CartografiaOriginal/vegetacion_yunquera.shp'),
                     crs = 25830)
+```
 
+```{r, echo=FALSE}
 mapview(yunquera,
         pane = "auto",
         viewer.suppress = mapviewGetOption("viewer.suppress"),
@@ -123,7 +125,8 @@ mapview(yunquera,
         legend = FALSE,
         lwd = 3,
         alpha.regions = 0,
-        layer.name = 'Yunquera') +
+        layer.name = 'Yunquera',
+        label = F) +
   
   mapview(vegetacion,
           viewer.suppress = mapviewGetOption("viewer.suppress"),
@@ -182,14 +185,14 @@ puntos_sf <- st_as_sf(puntos,
                       coords = c('decimalLongitude','decimalLatitude'),
                       crs = 4326)
 
-ocurrencias <- st_transform(puntos_sf,
+puntos_sf <- st_transform(puntos_sf,
                             crs = 25830)
 ```
 
 ##### {.unnumbered #primera}  
 ```{r puntosGBIF, echo=FALSE, fig.cap=capFig("Localización de los puntos descargados de GBIF con respecto al área de estudio")}
 ggplot() +
-  geom_sf(data = ocurrencias, alpha = 0.2) +
+  geom_sf(data = puntos_sf, alpha = 0.2) +
   geom_sf(data = yunquera, color = "red", fill = NA, linewidth = 1.5) +
   theme_minimal() +
   coord_sf()
@@ -199,7 +202,7 @@ ggplot() +
 El siguiente paso será delimitar los puntos escogidos al rectánculo mínimo envolvente (*bounding box*) del área de estudio mediante la función `sf::st_crop()`. La razón de escoger todos los puntos incluidos dentro del rectángulo y no solamente los que están dentro del área de estudio es que como veramos en la siguiente [sección](#comunidades) trabajaremos con comunidades ecológicas de forma cuadrangular.  
 
 ```{r}
-ocurrencias <- st_crop(ocurrencias, yunquera)
+ocurrencias <- st_crop(puntos_sf, yunquera)
 ```
 
 Podemos ver el resultado en la [Fig. 2](#segunda), que ascienden a un total de `r nrow(ocurrencias)` ocurrencias correspondientes a `r length(unique(ocurrencias$scientificName))` especies diferentes.  
@@ -226,7 +229,7 @@ vegetacion <- vegetacion |>
                                       "d",
                                       sep=""), 
                                 1:nrow(vegetacion)))) |> 
-  select(ID, D_ARBO_PRE:D_SUEL_PRE, D_USO:COMENTARIO)
+  dplyr::select(ID, D_ARBO_PRE:D_SUEL_PRE, D_USO:COMENTARIO)
 
 # Añadir ID de comunidad ecologica a cada ocurrencia
 ocurrencias_id <- ocurrencias |> 
@@ -283,48 +286,48 @@ ggplot() +
 
 El último paso de esta sección será calcular el Índice de Shannon (H). Esto lo haremos en cuatro pasos:  
 
- 1) Calcular el número de **especies** por cuadrícula. En el siguiente cuadro de código se agrupa por cuadrícula y nombre (`group_by`), se genera una columna con el número de especies (`count()`), y se le cambia el nombre a la columna. En la [Tabla 2](#tdos) vemos el encabezado del resultado.    
+ 1) Calcular el número de **especies** por comunidad. En el siguiente cuadro de código se agrupa por comunidad y nombre (`group_by`), se genera una columna con el número de especies (`count()`), y se le cambia el nombre a la columna. En la [Tabla 2](#tdos) vemos el encabezado del resultado.    
 
 ```{r}
-T_num_ind_sp_cuad <- bio |> 
+T_num_ind_sp_com <- bio |> 
   group_by(id_comunidad, scientific) |> 
   count() |> 
-  rename(num_ind_sp_cuad = n)
+  rename(num_ind_sp_com = n)
 ```
 
 ##### {.unnumbered #tdos}  
 ```{r tnumind, echo=FALSE}
-kable(head(T_num_ind_sp_cuad),
-      caption = "Tabla 2. Encabezado de la tabla del número de especies por cuarícula",
+kable(head(T_num_ind_sp_com),
+      caption = "Tabla 2. Encabezado de la tabla del número de especies por comunidad ecológica",
       align = c("c","l","c"))
 ```
 <br>  
 
- 2) Calcular el número de **ocurrencias** por cuadrícula. Realizamos un procedimiento similar, pero en este caso solamente agrupamos por cuadrícula. Vemos el encabezado en la [Tabla 3](#ttres).  
+ 2) Calcular el número de **ocurrencias** por comunidad. Realizamos un procedimiento similar, pero en este caso solamente agrupamos por comunidad. Vemos el encabezado en la [Tabla 3](#ttres).  
 
 ```{r}
-T_num_ind_cuad <- bio |> 
+T_num_ind_com <- bio |> 
   group_by(id_comunidad) |> 
   count() |> 
-  rename(num_ind_cuad = n)
+  rename(num_ind_com = n)
 ```
 
 ##### {.unnumbered #ttres}  
 ```{r, echo=FALSE}
-kable(head(T_num_ind_cuad),
-      caption = "Tabla 3. Encabezado de la tabla del número de ocurrencias por cuadrícula",
+kable(head(T_num_ind_com),
+      caption = "Tabla 3. Encabezado de la tabla del número de ocurrencias por comunidad ecológica",
       align = c("c","c"))
 ```
 <br>
 
- 3) El siguiente paso calcula el Índice de Shannon (*T_Shannon*). Para ello se unen las tablas haciendo un `left_join()` que incluye todas las columnas de la [Tabla 1](#tdos) de forma que cada cuadrícula tendrá asociada sus especies, el número de ocurrencias de cada una, y el número total de ocurrencias de la cuadrícula de esa especie. A continuación se crean los coeficientes $p_i$ y $\log p_i$ que se utilizarán para el cálculo del índice. En la [Tabla 4](#tcuatro) vemos la estructura de los datos hasta este punto.  
-Finalmente, se calcula el índice de Shannon, se seleccionan las columnas necesarias y se eliminan los duplicados.  
+ 3) El siguiente paso calcula el Índice de Shannon (*T_Shannon*). Para ello se unen las tablas haciendo un `left_join()` que incluye todas las columnas de la [Tabla 1](#tdos) de forma que cada comunidad tendrá asociada sus especies, el número de ocurrencias de cada una, y el número total de ocurrencias de la cuadrícula de esa especie. A continuación se crean los coeficientes $p_i$ y $\log p_i$ que se utilizarán para el cálculo del índice. En la [Tabla 4](#tcuatro) vemos la estructura de los datos hasta este punto.  
+Finalmente, se calcula el índice de Shannon, se seleccionan solamente las columnas necesarias y se eliminan los duplicados.  
 
 ```{r}
-T_Shannon <- T_num_ind_sp_cuad |> 
-  left_join(T_num_ind_cuad,
-            by = 'id_250') |> 
-  mutate(pi = num_ind_sp_cuad/num_ind_cuad,
+T_Shannon <- T_num_ind_sp_com |> 
+  left_join(T_num_ind_com,
+            by = 'id_comunidad') |> 
+  mutate(pi = num_ind_sp_com/num_ind_com,
          logpi = log2(pi)) |> 
   group_by(id_comunidad) |> 
   mutate(shannon = sum(logpi * pi)*-1) |> 
@@ -334,17 +337,17 @@ T_Shannon <- T_num_ind_sp_cuad |>
 
 ##### {.unnumbered #tcuatro} 
 ```{r, echo=FALSE}
-kable(head(T_num_ind_sp_cuad |> 
-  left_join(T_num_ind_cuad,
+kable(head(T_num_ind_sp_com |> 
+  left_join(T_num_ind_com,
             by = 'id_comunidad') |> 
-  mutate(pi = num_ind_sp_cuad/num_ind_cuad,
+  mutate(pi = num_ind_sp_com/num_ind_com,
          logpi = log2(pi))),
   caption = "Tabla 4. Coeficientes para el cálculo del Índice de Shannon",
   align = c("c","l","c","c","c","c"))
 ```
 <br>
 
- 4) El último paso consiste en dar el valor de Índice de Shannon a cada una de las [cuadrículas](#tercera) y reemplazar donde no hay ninguna ocurrencia por un 0. Vemos en el mapa la representación final
+ 4) El último paso consiste en dar el valor de Índice de Shannon a cada una de las [comunidades](#tercera). Se añade un paso de reemplazar por 0 en caso de existir NA. Vemos en el *webmap* la representación final.  
 
 ```{r}
 # Valor H a cada cuadricula
@@ -354,9 +357,6 @@ SF_shannon <- vegetacion |>
 
 # Sustituir NA por 0
 SF_shannon$shannon <- replace_na(SF_shannon$shannon, 0)
-
-# Corte para visualización
-SF_shannon_inter <- st_intersection(SF_shannon, yunquera)
 ```
 
 
@@ -370,16 +370,16 @@ mapview(yunquera,
         lwd = 3,
         alpha.regions = 0,
         layer.name = 'Yunquera',
-        cex = 10) +
+        label = F) +
   
-mapview(SF_shannon_inter,
+mapview(SF_shannon,
         zcol = 'shannon',
         at = c(0,0.80,1.6,2.3,2.9,9.1),
         col.regions = c('red','orange','yellow','green','blue'),
-        label = paste("H =", round(SF_shannon_inter$shannon, 2)),
+        label = paste("H =", round(SF_shannon$shannon, 2)),
         layer.name = 'Indice de Shannon',
         popup = popupTable(SF_shannon,
-                          zcol = c('ID')))
+                           zcol = c('ID', 'shannon')))
 ```
 <br>  
 
@@ -433,7 +433,8 @@ mapview(yunquera,
         legend = FALSE,
         lwd = 3,
         alpha.regions = 0,
-        layer.name = 'Yunquera') + 
+        layer.name = 'Yunquera',
+        label = F) + 
   
   mapview(SF_pinsapo,
         zcol = "Nparc",
@@ -463,7 +464,7 @@ BBox84[c(2,4)] <- BBox84[c(2,4)] + c(-0.005,0)
 ```
 
 
-(3) Creamos un patrón de puntos con la función `spatstat.geom::ppp()` utilizando el vector de coordendas X e Y, `marks` es la variable que utilizaremos para interpolar (Nparc), y en un objeto `owin()` ponemos las coordendas X e Y del rectángulo mínimo envolvente, que será la extensión de salida.  
+(3) Creamos un patrón de puntos con la función `spatstat::ppp()` utilizando el vector de coordendas X e Y, `marks` es la variable que utilizaremos para interpolar (Nparc), y en un objeto `owin()` ponemos las coordendas X e Y del rectángulo mínimo envolvente, que será la extensión de salida.  
 
 ```{r}
 ppp_pinsapo <- ppp(st_coordinates(SF_pinsapo84)[,1],
@@ -523,7 +524,9 @@ mapview(yunquera,
         legend = FALSE,
         lwd = 3,
         alpha.regions = 0,
-        layer.name = 'Yunquera') +
+        layer.name = 'Yunquera',
+        label = F) +
+  
   mapview(ratify(R_pinsapo),
           col.regions = pal,
           na.color = NA,
@@ -580,7 +583,8 @@ mapview(yunquera,
         legend = FALSE,
         lwd = 3,
         alpha.regions = 0,
-        layer.name = 'Yunquera') +
+        layer.name = 'Yunquera',
+        label = F) +
   
   mapview(R_orientaciones,
           na.color = NA,
@@ -607,7 +611,8 @@ mapview(yunquera,
         legend = FALSE,
         lwd = 3,
         alpha.regions = 0,
-        layer.name = 'Yunquera') +
+        layer.name = 'Yunquera',
+        label = F) +
   
   mapview(R_dist_canales,
           col.regions = brewer.pal(10,"RdBu"),
@@ -628,6 +633,21 @@ R_shannon <- SF_shannon |>
   resample(R_pinsapo) |> 
   mask(yunquera)
 ```
+
+```{r, echo=FALSE}
+mapview(yunquera,
+        color = 'red',
+        legend = FALSE,
+        lwd = 3,
+        alpha.regions = 0,
+        layer.name = 'Yunquera',
+        label = F) +
+  
+  mapview(R_shannon,
+          col.regions = brewer.pal(10,"RdBu"),
+          layer.name = "Indice de Shannon")
+```
+
 
 #### Guardar las capas {.unnumbered}  
 
@@ -667,9 +687,9 @@ knitr::include_graphics("Imagenes/rvirtual.png")
 
 ### Segmentación del territorio {#segm}  
 
-El último paso de esta sección consiste en realizar una segmentación del monte de Yunquera usando el ráster virtual creado en la sección anterior. Para ello, se utilizará la herramienta [Orfeo Toolbox](https://www.orfeo-toolbox.org/) en la interfaz de QGIS.  
+El último paso de esta sección consiste en realizar una segmentación del monte de Yunquera utilizando el ráster virtual creado en la sección anterior. Para ello, se utilizará la herramienta [Orfeo Toolbox](https://www.orfeo-toolbox.org/) en la interfaz de QGIS.  
 
-Para llevar esta tarea a cabo, con Orfeo correctamente instalado, se debe ir a *Caja de herramientas de Procesos -> OTB -> Segmentation -> Segmentation*. Una vez ahí, se seleccionaron las opciones de la [Fig. 6](#sexta). La opción "*Minimum region size*" se probó con varios valores. En el *webmap* que se verá posteriormente se analizarán las diferencias e influencia de las diferentes capas de entrada en los resultados.  
+Para llevar esta tarea a cabo, con Orfeo correctamente instalado, se debe ir a *Caja de herramientas de Procesos -> OTB -> Segmentation -> Segmentation*. Una vez ahí, se seleccionan las opciones de la [Fig. 6](#sexta). La opción "*Minimum region size*" se probó con varios valores (el resultado debe convertirse a polígono). En el *webmap* que se verá posteriormente se analizarán las diferencias e influencia de las diferentes capas de entrada en los resultados.  
 
 ##### {.unnumbered #sexta}  
 ```{r,echo=FALSE, out.width = "1200px", fig.cap=capFig("Parámetros utilizados en la segmentación")}
@@ -677,7 +697,7 @@ knitr::include_graphics("Imagenes/segmentacion.png")
 ```
 <br> 
 
-Para finalizar la segunda parte de la práctica, se cargan las tres capas creadas con Orfeo en QGIS.
+Para finalizar la segunda parte de la práctica, se cargan las tres capas creadas con Orfeo en QGIS.  
 
 ```{r}
 segmentation1500 <- read_sf(here("Cartografia/CapasDefVectorial/segmentacion1500.shp"))
@@ -755,9 +775,15 @@ Los resultados se discuten en la última [sección](#cuestiones). No obstante, L
 
 Para analizar los resultados podemos activar en primer lugar *Segmentacion (2000)*, y a continuación *Segmentacion (2500)* (el orden es importante). Tras hacer esto, podemos activar las variables una a una empezando por *Densidad pinsapo*, *Indice de Shannon*, *Orientaciones* y *Distancia a canales (m)*. La segmentación de 2500 píxeles como unidad mínima se tratará como **segmentación inicial**, y las unidades segmentadas como **cantones**.  
 
-Lo primero que podemos ver es que si segmentamos con unidad mínima de 2000, se crean 7 cantones a mayores. La segmentación inicial parece separar muy bien áreas con alta densidad de pinsapo de áreas con baja densidad. Al aumentar el número de cantones no se ve una clara separación de nuevas áreas con densidad de pinsapo diferentes. Si activamos el índice de Shannon vemos que no existe una clara relación entre los cantones y la diversidad de especies. Sin embargo, aunque no son unas separaciones tan suaves como las vistas para la capa de densidad de pinsapo, sí que se puede ver una relación. Con respecto a la capa de orientaciones, es la capa más irregular y por ello también hace más complicado el análisis.En algunos cantones se ve una delimitación clara, pero otros parece que incluyen tanto umbrías como solanas. La capa de distancia a canales sí que parece tener una influenia enorme en la generación de cantones. Además, los cantones generados a mayores con segmentación de 2000 píxeles parece que más o menos todos siguen patrones de esta capa.  
+Lo primero que podemos ver es que si segmentamos con unidad mínima de 2000, se crean 11 cantones a mayores. La segmentación inicial parece separar muy bien áreas con alta densidad de pinsapo de áreas con baja densidad. Al aumentar el número de cantones no se ve una clara separación de nuevas áreas con densidad de pinsapo diferentes (excepto dos cantones al sur).  
 
-Si hacemos el mismo procedimiento tomando como capa inicial *Segmentación (2000)* y la comparamos con *Segmentación (1500)*, vemos que los cantones generados a mayores siguien patrones sobre la capa de orientaciones principalmente.  
+Si activamos el índice de Shannon vemos que no existe una clara relación entre los cantones y la diversidad de especies. Aunque hay algunos cantones que sí tienen una buena separación por diversidad, no se ve el patrón claro que se veía en la capa anterior. Además, aumentar el número de cantones no parece crear unidades homogéneas en biodiversidad.  
+
+Con respecto a la capa de orientaciones, es la capa más irregular y por ello también hace más complicado el análisis. Hay varias zonas que se ve una delimitación más o menos clara de umbrías y solanas, especialmente al noroeste del área de estudio. El aumento del número de cantones no produce claras separaciones a mayores de solanas y umbrías.  
+
+La capa de distancia a canales sí que parece tener una influenia enorme en la generación de cantones. Además, los cantones generados a mayores con segmentación de 2000 píxeles parece que más o menos todos siguen patrones de esta capa.  
+
+Si hacemos el mismo procedimiento tomando como capa inicial *Segmentación (2000)* y la comparamos con *Segmentación (1500)*, vemos que los cantones generados a mayores siguien patrones sobre las capas de orientaciones y distancia a canales.    
 
 Si consideramos una gestión del pinsapo en este monte: el pinsapo es una especie que dadas sus características ecológicas se desarrolla mejor en laderas de umbría. Para realizar una gestión más eficiente de la especie, lo óptimo sería dividir el terreno en un número mayor de cantones. En este caso, con una unidad mínima de 15 hectáreas (1500 píxeles de 100 $m^2$) tenemos un total de `r nrow(segmentation1500)` cantones.  
 
