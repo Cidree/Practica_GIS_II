@@ -17,6 +17,7 @@ output:
 ```{r librerias, include=FALSE}
 library(mapview)
 library(leafpop)
+library(janitor)
 library(tidyverse)
 library(sf)
 library(knitr)
@@ -121,8 +122,11 @@ El resto de datos de partida se obtendrán a lo largo de la resolución del ejer
 
 Antes de comenzar a resolver el ejercicio conviene realizar una breve descripción de la zona de estudio.  
 
-Yunquera es un municipio perteneciente a la provincia de Málaga (Andalucía). En este monte se encuentra una parte importante del pinsapo. En el siguiente mapa se pueden explorar las diferentes formaciones vegetales presentes en el área de estudio (hacer *click* en las parcelas para explorar).  
+Yunquera es un municipio perteneciente a la provincia de Málaga (Andalucía), que se sitúa al oeste de la provincia.  
 
+Al oeste del municipio de Yunquera, se encuentra el monte *Pinar de Yunquera*. En este monte encontramos especies arbóreas como *Abies pinsapo, Castanea sativa, Cedrus atlantica, Quercus faginea, Quercus ilex* subsp. *ballota, Pinus halepensis, Pinus nigra y Olea europaea* var. *europaea*. Estos se encuentran formando distintas formaciones entre las que destacan los pinsapares en masas monoespecíficas y pluriespecíficas.  
+
+En el siguiente *webmap* se pueden explorar las diferentes formaciones vegetales presentes en el área de estudio (hacer *click* en las parcelas para explorar).  
 ```{r yunquera}
 yunquera <- read_sf(here('Cartografia/CartografiaOriginal/limite_yunquera.shp'),
                     crs = 25830)
@@ -157,13 +161,17 @@ mapview(yunquera,
 # Resolución del ejercicio  
 <hr>  
 
-Se ha dividido el ejercicio en 4 bloques de acuerdo a los objetivos del mismo.  
+Se ha dividido el ejercicio en 5 bloques de acuerdo a los objetivos del mismo.  
 
 ## Flujo de trabajo {#flujo}  
 
-```{r, out.width=720, out.extra='style="border: 1px solid #464646;" allowfullscreen="" allow="autoplay"'}
-knitr::include_url("file:///D:/OneDrive/Apuntes/Geoforest/2-Formacion_Transversal/SIG_II/Practicas/Practica_GIS_II/Imagenes/workflow.html", height = 405)
+Se presenta el flujo de trabajo como [iframe](#workIframe) para poder hacer zoom o abrir el diagrama en [diagrams.net](https://www.diagrams.net/). También se puede visualizar directamente [aquí](https://viewer.diagrams.net/?tags=%7B%7D&highlight=0000ff&edit=_blank&layers=1&nav=1&title=workflowSIGII#G1YEsBpn8R0OUol5t4aw_K4P3HFLPbdDZd) (recomendado).  
+
+#### {.unnumbered #workIframe}  
+```{r, echo=FALSE, results='asis'}
+cat(paste('<iframe frameborder="0" style="width:100%;height:800px;" src="https://viewer.diagrams.net/?tags=%7B%7D&highlight=0000ff&edit=_blank&layers=1&nav=1&title=workflowSIGII#Uhttps%3A%2F%2Fdrive.google.com%2Fuc%3Fid%3D1YEsBpn8R0OUol5t4aw_K4P3HFLPbdDZd%26export%3Ddownload" allowfullscreen="" data-external="1"></iframe>'))
 ```
+<br>
 
 ## Mapa de biodiversidad {#biodiversidad}  
 
@@ -216,7 +224,7 @@ ggplot() +
 ```
 <br>  
 
-El siguiente paso será delimitar los puntos escogidos al rectánculo mínimo envolvente (*bounding box*) del área de estudio mediante la función `sf::st_crop()`. La razón de escoger todos los puntos incluidos dentro del rectángulo y no solamente los que están dentro del área de estudio es que como veramos en la siguiente [sección](#comunidades) trabajaremos con comunidades ecológicas de forma cuadrangular.  
+El siguiente paso será delimitar los puntos escogidos al rectánculo mínimo envolvente (*bounding box*) del área de estudio mediante la función `sf::st_crop()`. La razón de escoger todos los puntos incluidos dentro del rectángulo y no solamente los que están dentro del área de estudio es que como veremos en la siguiente [sección](#comunidades) trabajaremos con comunidades ecológicas de forma cuadrangular.  
 
 ```{r}
 ocurrencias <- st_crop(puntos_sf, yunquera)
@@ -551,10 +559,23 @@ mapview(yunquera,
 ```
 <br>
 
+En el resultado vemos que a *grosso modo* las densidades más altas se encuentran al sureste del monte de Yunquera.  
+
+<br>
 
 #### Orientaciones {.unnumbered}  
 
-La segunda de las capas se corresponde con la de orientaciones. En este caso cargamos el modelo digital del terreno (mdt), calculamos las orientaciones en grados con la función `raster::terrain()`. El siguiente paso será hacer coincidir espacialmente ambos raster con la misma resolución (`resample()`). Finalmente lo reclasificaremos teniendo en cuenta que valores bajos y valores altos significan lo mismo (Norte) y lo trataremos como un raster con valores discretos con la función `ratify()`.   
+La segunda de las capas se corresponde con la de orientaciones. En este caso cargamos el modelo digital del terreno (mdt), calculamos las orientaciones en grados con la función `raster::terrain()`. El siguiente paso será hacer coincidir espacialmente ambos raster con la misma resolución (`resample()`). Finalmente lo reclasificaremos teniendo en cuenta lo siguiente:  
+
+* **1**: zonas de umbría alta (Norte).  
+
+* **2**: zonas de umbría (Noreste, Noroeste).  
+
+* **3**: zonas medias (Este, Oeste).  
+
+* **4**: zonas de solana (Sureste, Suroeste).  
+
+* **5**: zonas de solana alta (Sur).  
 
 ```{r}
 # Cargar capa y cortar a la extensión de Yunquera
@@ -573,9 +594,9 @@ mat <- matrix(c(-Inf, 22.5,1,
                 67.5,112.5,3,
                 112.5,157.5,4,
                 157.5,202.5,5,
-                202.5,247.5,6,
-                247.5,292.5,7,
-                292.5,337.5,8,
+                202.5,247.5,4,
+                247.5,292.5,3,
+                292.5,337.5,2,
                 337.5,Inf,1),
               ncol = 3,
               byrow = TRUE)
@@ -583,17 +604,17 @@ mat <- matrix(c(-Inf, 22.5,1,
 # Reclasificación y recorte al área de estudio
 R_orientaciones <- orientaciones |> 
   reclassify(rcl = mat) |> 
-  mask(yunquera) |> 
-  ratify() 
+  mask(yunquera)
 ```
 
 
 ```{r, echo=FALSE}
-x <- levels(R_orientaciones)[[1]]
-x$code <- c("N","NE","E","SE","S","SW","W","NW")
-levels(R_orientaciones) <- x
+RC_orientaciones <- ratify(R_orientaciones)
+x <- levels(RC_orientaciones)[[1]]
+x$code <- c("Umbria alta","Umbria","Zona media","Solana","Solana alta")
+levels(RC_orientaciones) <- x
 
-aspal <- c("#F11512", "#F4B225","#EFF915","#ACF7B1","#91F4FF","#91B0DC","#0463EB","#D604EB")
+aspal <- c("#3076E1", "#97E0ED","#F7E912","#F3823C","#F11512")
 
 mapview(yunquera,
         color = 'red',
@@ -603,25 +624,34 @@ mapview(yunquera,
         layer.name = 'Yunquera',
         label = F) +
   
-  mapview(R_orientaciones,
+  mapview(RC_orientaciones,
           na.color = NA,
           col.regions = aspal,
           layer.name = 'Orientaciones')
 ```
 <br>  
 
+Con el *webmap* y la siguiente tabla a modo informativo vemos que el monte tiene mayor superficie de laderas expuestas a umbría que a solanas.  
+
+```{r}
+values(RC_orientaciones) |> 
+  tabyl() |> 
+  adorn_pct_formatting()
+```
+
+<br>
+
 #### Distancia a canales {.unnumbered}  
 
 El ráster de distancia a canales se ha calculado previamente siguiendo los pasos del [guión](https://ruizgomezfj.github.io/GEOFOREST_SIG2/guion_practica_2022.html#Preparaci%C3%B3n_de_capas_raster:) en QGIS debido a la complicidad de realizar este análisis en R. La capa obtenida se muestra en el siguiente *webmap*, la cual se encuentra en el sistema de coordenadas correspondiente y con `resample()` nos aseguramos de que coincida espacialmente con el resto de capas.  
 
 ```{r}
-R_dist_canales <- raster(here("Cartografia/CartografiaOriginal/Raster_distancia_cauces.tif")) |> 
+R_dist_canales <- raster(here("Cartografia/CartografiaOriginal/Raster_dist_cauces.tif")) |> 
   resample(R_pinsapo) |> 
   mask(yunquera)
 ```
 
 
-<center>
 ```{r, echo=FALSE}
 mapview(yunquera,
         color = 'red',
@@ -635,7 +665,6 @@ mapview(yunquera,
           col.regions = brewer.pal(10,"RdBu"),
           layer.name = "Distancia (m)")
 ```
-</center>
 <br>  
 
 #### Indice de Shannon {.unnumbered}  
@@ -660,11 +689,23 @@ mapview(yunquera,
         layer.name = 'Yunquera',
         label = F) +
   
+  mapview(vegetacion,
+          viewer.suppress = mapviewGetOption("viewer.suppress"),
+          zcol = 'D_ARBO_PRE',
+          burst = F,
+          legend = F,
+          alpha.regions = 0,
+          layer.name = 'Arbolado (%)',
+          popup = popupTable(vegetacion,
+                             zcol = 'COMENTARIO')) +
+  
   mapview(R_shannon,
           col.regions = brewer.pal(10,"RdBu"),
-          layer.name = "Indice de Shannon")
+          layer.name = "Indice de Shannon") 
 ```
+<br>  
 
+En el *webmap* anterior vemos que las zonas de mayor biodiversidad se encuentran en la zona sureste. Se puede interactuar con el mapa poder ver el porcentaje de arbolado y el tipo de formación vegetal en las diferentes áreas.
 
 #### Guardar las capas {.unnumbered}  
 
@@ -714,7 +755,7 @@ knitr::include_graphics("Imagenes/segmentacion.png")
 ```
 <br> 
 
-Para finalizar la segunda parte de la práctica, se cargan las tres capas creadas con Orfeo en QGIS.  
+Para finalizar la tercera tarea de la práctica, se cargan las tres capas creadas con Orfeo en QGIS.  
 
 ```{r}
 segmentation1500 <- read_sf(here("Cartografia/CapasDefVectorial/segmentacion1500.shp"))
@@ -771,7 +812,7 @@ m <- mapview(segmentation1500,
           col.regions = brewer.pal(n = 5, name = "RdYlGn"),
           layer.name = 'Indice de Shannon') +
   
-  mapview(R_orientaciones,
+  mapview(RC_orientaciones,
         col.regions = aspal,
         layer.name = 'Orientaciones',
         alpha.regions = 0.7) +
@@ -788,21 +829,41 @@ m
 **Nota**: los bordes de la segmentación no coinciden totalmente con el borde de los ráster. Esto se debe a que las capas se encuentran en crs 25830, pero el webmap se representa en Web Mercator (EPSG: 3857). A modo de análisis no afecta, pero las conclusiones finales se tomarán sobre el *Web Map* publicado de la siguiente [sección](#webmap).  
 </div>
 
-Los resultados se discuten en la última [sección](#cuestiones). No obstante, Los resultados se harán en base a la segmentación escogida que se discute en las siguientes líneas.  
+Los resultados se discuten en las [cuestiones finales](#cuestiones). No obstante, se hará una breve discusión sobre las tres composiciones de segmentación creadas.  
 
-Para analizar los resultados podemos activar en primer lugar *Segmentacion (2000)*, y a continuación *Segmentacion (2500)* (el orden es importante). Tras hacer esto, podemos activar las variables una a una empezando por *Densidad pinsapo*, *Indice de Shannon*, *Orientaciones* y *Distancia a canales (m)*. La segmentación de 2500 píxeles como unidad mínima se tratará como **segmentación inicial**, y las unidades segmentadas como **cantones**.  
+Para analizar los resultados podemos activar en primer lugar *Segmentacion (2000)*, y a continuación *Segmentacion (2500)* (el orden es importante para su superposición). Tras hacer esto, podemos activar las variables una a una empezando por *Densidad pinsapo*, *Indice de Shannon*, *Orientaciones* y *Distancia a canales (m)*. La segmentación de 2500 píxeles como unidad mínima se tratará como **segmentación inicial**, y las unidades segmentadas como **cantones**.  
 
-Lo primero que podemos ver es que si segmentamos con unidad mínima de 2000, se crean 11 cantones a mayores. La segmentación inicial parece separar muy bien áreas con alta densidad de pinsapo de áreas con baja densidad. Al aumentar el número de cantones no se ve una clara separación de nuevas áreas con densidad de pinsapo diferentes (excepto dos cantones al sur).  
+Lo primero que podemos ver es que si segmentamos con unidad mínima de 2000, se crean 11 cantones a mayores. La segmentación inicial parece separar muy bien áreas con alta densidad de pinsapo de áreas con baja densidad. Al aumentar el número de cantones no se ve una clara separación de nuevas áreas con densidad de pinsapo diferentes.  
 
-Si activamos el índice de Shannon vemos que no existe una clara relación entre los cantones y la diversidad de especies. Aunque hay algunos cantones que sí tienen una buena separación por diversidad, no se ve el patrón claro que se veía en la capa anterior. Además, aumentar el número de cantones no parece crear unidades homogéneas en biodiversidad.  
+Si activamos el índice de Shannon vemos que la relación no es tan clara como con la variable anterior. Sin embargo, sí que se ve como la segmentación va aproximadamente paralela a zonas de alta biodiversidad para separar zonas de menor biodiversidad. Además, aumentar el número de cantones parece tener una relación algo mayor con esta variable.  
 
-Con respecto a la capa de orientaciones, es la capa más irregular y por ello también hace más complicado el análisis. Hay varias zonas que se ve una delimitación más o menos clara de umbrías y solanas, especialmente al noroeste del área de estudio. El aumento del número de cantones no produce claras separaciones a mayores de solanas y umbrías.  
+Con respecto a la capa de orientaciones, al ser la más irregular, los patrones de segmentación pueden ser más complicados de identificar. Sin embargo, vemos que en zonas donde la densidad de pinsapo y el índice de Shannon (en menor medida) eran aproximadamente uniformes (norte, oeste), la segmentación produce diferencias entre solanas, zonas medias y umbrías bastante claras. El aumento del número de cantones no parece estar muy influenciado por esta variable, aunque al oeste y al norte se pueden ver algunas divisiones más o menos claras.  
 
-La capa de distancia a canales sí que parece tener una influenia enorme en la generación de cantones. Además, los cantones generados a mayores con segmentación de 2000 píxeles parece que más o menos todos siguen patrones de esta capa.  
+La variable de distancia a canales también parece tener una gran influencia para separar zonas muy cercanas a canales de zonas muy alejadas. El aumento del número de cantones en la mayoría de los casos se ve muy correlacionado con esta variable.  
 
-Si hacemos el mismo procedimiento tomando como capa inicial *Segmentación (2000)* y la comparamos con *Segmentación (1500)*, vemos que los cantones generados a mayores siguien patrones sobre las capas de orientaciones y distancia a canales.    
+Si hacemos el mismo procedimiento tomando como capa inicial *Segmentación (2000)* y la comparamos con *Segmentación (1500)*, vemos que los cantones generados a mayores generan unas irregularidades que a modo de gestión pueden no ser convenientes
 
-Si consideramos una gestión del pinsapo en este monte: el pinsapo es una especie que dadas sus características ecológicas se desarrolla mejor en laderas de umbría. Para realizar una gestión más eficiente de la especie, lo óptimo sería dividir el terreno en un número mayor de cantones. En este caso, con una unidad mínima de 15 hectáreas (1500 píxeles de 100 $m^2$) tenemos un total de `r nrow(segmentation1500)` cantones.  
+Dependiendo del tipo de gestión que llevemos a cabo nos puede interesar más una segmentación u otra. En este monte donde podemos tener preferencias de protección y conservación del pinsapo puede que un tamaño de parcela muy grande no nos interese. En este sentido, el tamaño de píxel mínimo de 2500 crea muchos cantonesde superficie superior a 60 ha por lo que se puede hacer demasiado grande de gestionar para estos objetivos ([Fig. 5C](#quinta)). Si activamos en el *webmap* la capa de *segmentación (2000)* y *densidad pinsapo* podemos ver claramente dos cantones con alta densidad de pinsapo situados en la esquina sureste (cantón 69) y otro situado al noroeste de este (cantón 56) que su tamaño puede ser demasiado grande para una gestión más eficiente. Viendo el valor del resto de variables en estos dos cantones, vemos que existe una heterogeneidad notable. Por ello, si activamos *segmentación (1500)* vemos que estos cantones quedan separados en una mayor número de unidades. En conclusión, se considera que para una gestión forestal del pinsapo nos interesa una segmentación mayor de las zonas de pinsapo que atiendan al resto de variables consideradas. Por ello, para las cuestiones finales se responderá tomando como elección una segmentación con tamaño mínimo de 1500 píxeles.  
+
+#### {.unnumbered #quinta}
+```{r,fig.cap=capFig("Histogramas del tamaño de parcela. A) Tamaño mínimo de píxel = 1500; B) tamaño mínimo de píxel = 2000; C) tamaño mínimo de píxel = 2500")}
+par(mfrow = c(1,3))
+hist(as.vector(st_area(segmentation1500))[as.vector(st_area(segmentation1500))>200]/10000,
+     ylab = "",
+     xlab = "Superficie (ha)",
+     main = "A")
+
+hist(as.vector(st_area(segmentation2000))[as.vector(st_area(segmentation2000))>200]/10000,
+     ylab = "",
+     xlab = "Superficie (ha)",
+     main = "B")
+
+hist(as.vector(st_area(segmentation2500))[as.vector(st_area(segmentation2500))>200]/10000,
+     ylab = "",
+     xlab = "Superficie (ha)",
+     main = "C")
+```
+
 
 ```{r, include=FALSE}
 mapshot(m,
@@ -813,15 +874,17 @@ mapshot(m,
 
 ## Webmap {#webmap}  
 
-El tercer objetivo era crear un *webmap* y publicarlo. Para ver este mapa hace click [aquí](https://cidree.github.io/Segmentacion_ACG/).  
+El cuarto objetivo era crear un *webmap* y publicarlo. Para ver dicho mapa, hacer click [aquí](https://cidree.github.io/Segmentacion_ACG/).  
 
 ## Cuestiones finales {#cuestiones}  
 
-* Consideras que el resultado es consistente con la realidad que conoces del terreno? Justifica tu respuesta.  
+<p class="preguntas">Consideras que el resultado es consistente con la realidad que conoces del terreno? Justifica tu respuesta.</p> 
 
+Teniendo en cuenta las variables consideradas sí que es consistente el resultado. No obstante, si superponemos la segmentación junto a una imagen aérea podemos ver que al no tener en cuenta los caminos o pistas, la segmentación ignora estos elementos del paisaje que son clave en una segmentación para una gestión más sencilla y eficiente. Por ello, a efectos prácticos pierde consistencia.  
 
+<p class="preguntas">Cuál de las capas (variables) utilizada aparenta tener más influencia en el resultado final?  Por qué crees que pasa esto?</p>  
 
-
+Distancia a canales > densidad pinsapo > orientación > indice de Shannon.  
 
 
 

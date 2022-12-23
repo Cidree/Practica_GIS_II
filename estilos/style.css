@@ -30,6 +30,9 @@ p {
 }
 
 /* listas  ################################################ */
+li {
+  text-align: justify;
+}
 
 /* ul {
   color: darkblue;
@@ -87,7 +90,9 @@ a:visited {
   font-weight: bold;
 }
 
-
+.preguntas {
+  font-weight: bold;
+}
 
 
 

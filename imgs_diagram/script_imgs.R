@@ -25,8 +25,7 @@ prueba$Orientacion <- factor(prueba$Orientacion)
 
 ggplot(prueba, aes(x=x, y=y, fill = Orientacion)) +
   geom_raster() +
-  scale_fill_manual(values = c("#F11512", "#F4B225","#EFF915","#ACF7B1",
-                               "#91F4FF","#91B0DC","#0463EB","#D604EB")) +
+  scale_fill_manual(values = c("#3076E1", "#97E0ED","#F7E912","#F3823C","#F11512")) +
   theme_void() +
   theme(legend.position = "none") +
   coord_fixed()
