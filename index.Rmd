@@ -165,7 +165,7 @@ Se ha dividido el ejercicio en 5 bloques de acuerdo a los objetivos del mismo.
 
 ## Flujo de trabajo {#flujo}  
 
-Se presenta el flujo de trabajo como [iframe](#workIframe) para poder hacer zoom o abrir el diagrama en [diagrams.net](https://www.diagrams.net/). También se puede visualizar directamente [aquí](https://viewer.diagrams.net/?tags=%7B%7D&highlight=0000ff&edit=_blank&layers=1&nav=1&title=workflowSIGII#G1YEsBpn8R0OUol5t4aw_K4P3HFLPbdDZd) (recomendado).  
+Se presenta el flujo de trabajo a continuación. También se puede visualizar directamente [aquí](https://viewer.diagrams.net/?tags=%7B%7D&highlight=0000ff&edit=_blank&layers=1&nav=1&title=workflowSIGII#G1YEsBpn8R0OUol5t4aw_K4P3HFLPbdDZd) (recomendado).  
 
 #### {.unnumbered #workIframe}  
 ```{r, echo=FALSE, results='asis'}
@@ -825,9 +825,8 @@ m
 ```
 <br>  
 
-<div tag="cuadros">
-**Nota**: los bordes de la segmentación no coinciden totalmente con el borde de los ráster. Esto se debe a que las capas se encuentran en crs 25830, pero el webmap se representa en Web Mercator (EPSG: 3857). A modo de análisis no afecta, pero las conclusiones finales se tomarán sobre el *Web Map* publicado de la siguiente [sección](#webmap).  
-</div>
+<div class="cuadros">
+**Nota**: los bordes de la segmentación no coinciden totalmente con el borde de los ráster. Esto se debe a que las capas se encuentran en crs 25830, pero el webmap se representa en Web Mercator (EPSG: 3857). A modo de análisis no afecta, pero las conclusiones finales se tomarán sobre el *Web Map* publicado de la siguiente [sección](#webmap).</div>  
 
 Los resultados se discuten en las [cuestiones finales](#cuestiones). No obstante, se hará una breve discusión sobre las tres composiciones de segmentación creadas.  
 
@@ -843,9 +842,9 @@ La variable de distancia a canales también parece tener una gran influencia par
 
 Si hacemos el mismo procedimiento tomando como capa inicial *Segmentación (2000)* y la comparamos con *Segmentación (1500)*, vemos que los cantones generados a mayores generan unas irregularidades que a modo de gestión pueden no ser convenientes
 
-Dependiendo del tipo de gestión que llevemos a cabo nos puede interesar más una segmentación u otra. En este monte donde podemos tener preferencias de protección y conservación del pinsapo puede que un tamaño de parcela muy grande no nos interese. En este sentido, el tamaño de píxel mínimo de 2500 crea muchos cantonesde superficie superior a 60 ha por lo que se puede hacer demasiado grande de gestionar para estos objetivos ([Fig. 5C](#quinta)). Si activamos en el *webmap* la capa de *segmentación (2000)* y *densidad pinsapo* podemos ver claramente dos cantones con alta densidad de pinsapo situados en la esquina sureste (cantón 69) y otro situado al noroeste de este (cantón 56) que su tamaño puede ser demasiado grande para una gestión más eficiente. Viendo el valor del resto de variables en estos dos cantones, vemos que existe una heterogeneidad notable. Por ello, si activamos *segmentación (1500)* vemos que estos cantones quedan separados en una mayor número de unidades. En conclusión, se considera que para una gestión forestal del pinsapo nos interesa una segmentación mayor de las zonas de pinsapo que atiendan al resto de variables consideradas. Por ello, para las cuestiones finales se responderá tomando como elección una segmentación con tamaño mínimo de 1500 píxeles.  
+Dependiendo del tipo de gestión que llevemos a cabo nos puede interesar más una segmentación u otra. En este monte donde podemos tener preferencias de protección y conservación del pinsapo puede que un tamaño de parcela muy grande no nos interese. En este sentido, el tamaño de píxel mínimo de 2500 crea muchos cantonesde superficie superior a 60 ha por lo que se puede hacer demasiado grande de gestionar para estos objetivos ([Fig. 7C](#septima)). Si activamos en el *webmap* la capa de *segmentación (2000)* y *densidad pinsapo* podemos ver claramente dos cantones con alta densidad de pinsapo situados en la esquina sureste (cantón 69) y otro situado al noroeste de este (cantón 56) que su tamaño puede ser demasiado grande para una gestión más eficiente. Viendo el valor del resto de variables en estos dos cantones, vemos que existe una heterogeneidad notable. Por ello, si activamos *segmentación (1500)* vemos que estos cantones quedan separados en una mayor número de unidades. En conclusión, se considera que para una gestión forestal del pinsapo nos interesa una segmentación mayor de las zonas de pinsapo que atiendan al resto de variables consideradas. Por ello, para las cuestiones finales se responderá tomando como elección una segmentación con tamaño mínimo de 1500 píxeles.  
 
-#### {.unnumbered #quinta}
+#### {.unnumbered #septima}
 ```{r,fig.cap=capFig("Histogramas del tamaño de parcela. A) Tamaño mínimo de píxel = 1500; B) tamaño mínimo de píxel = 2000; C) tamaño mínimo de píxel = 2500")}
 par(mfrow = c(1,3))
 hist(as.vector(st_area(segmentation1500))[as.vector(st_area(segmentation1500))>200]/10000,
@@ -880,16 +879,35 @@ El cuarto objetivo era crear un *webmap* y publicarlo. Para ver dicho mapa, hace
 
 <p class="preguntas">Consideras que el resultado es consistente con la realidad que conoces del terreno? Justifica tu respuesta.</p> 
 
-Teniendo en cuenta las variables consideradas sí que es consistente el resultado. No obstante, si superponemos la segmentación junto a una imagen aérea podemos ver que al no tener en cuenta los caminos o pistas, la segmentación ignora estos elementos del paisaje que son clave en una segmentación para una gestión más sencilla y eficiente. Por ello, a efectos prácticos pierde consistencia.  
+Teniendo en cuenta las variables consideradas sí que es consistente el resultado. No obstante, si superponemos la segmentación junto a una imagen aérea podemos ver que al no tener en cuenta los caminos o pistas, la segmentación ignora estos elementos del paisaje que son clave en la creación de cantones para una gestión más sencilla y eficiente. Por ello, a efectos prácticos puede perder consistencia. Por otro lado, si nos fijamos en cuando a homogeneidad de las masas forestales en cuanto a su densidad (en la imagen aérea) podemos ver una alta correlación.  
 
 <p class="preguntas">Cuál de las capas (variables) utilizada aparenta tener más influencia en el resultado final?  Por qué crees que pasa esto?</p>  
 
-Distancia a canales > densidad pinsapo > orientación > indice de Shannon.  
+Densidad pinsapo > distancia a canales > índice de Shannon > orientación.  
+
+En las zonas de cambio de densidad de pinsapo, el resto de variables parecen ser también más o menos homogéneas, y en donde cambia la densidad de pinsapo, es donde se producen cambios mayores en la densidad de los píxeles dado que esta variable produce unos cambios de densidad mayores al resto.  
+
+<p class="preguntas">Para qué aspectos de la gestión del territorio crees que sería de utilidad la cartografía obtenida?</p>  
+
+Principalmente para una gestión forestal del pinsapo ya que tenemos bien separados los cantones de mayor densidad que los de menor densidad. Si añadimos un estudio de fauna, podríamos analizar qué especies están presentes en el monte y por qué unas zonas tienen una biodiversidad mucho mayor que otras para, en medida de lo posible y sin perjudicar otros usos que pueda tener el monte que no se quieran perder, aumentar la biodiversidad en otras zonas.  
+
+<p class="preguntas">Cómo mejorarías el resultado? Incorpora alguna sugerencia sobre mejoras técnicas y/o nuevas variables a incorporar.</p>  
+
+Para añadir nuevas variables y mejorar el resultado es indispensable saber qué tipo de gestión de llevará a cabo. En este caso se considera la gestión forestal del pinsapo:
+
+Para realizar gestión forestal, es interesante aprovechar la red viaria disponible en el monte ya que se definen límites más claros para el gestor forestal y porque son aprovechados para la extracción de madera. Además, si cortamos el MDT a la extensión del monte vemos que existe un gradiente altitudinal de 1000 metros, que va a influir mucho en el desarrollo de la vegetación. De este modo, añadir una variable de distancia a caminos y la altitud podría ser una buena idea para una gestión forestal. Finalmente podríamos suavizar los bordes de los cantones.  
 
 
 
 
 
+
+
+# Información de la sesión {.unnumbered}  
+
+```{r, echo=FALSE}
+sessionInfo()
+```
 
 
 
